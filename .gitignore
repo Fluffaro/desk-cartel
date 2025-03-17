@@ -1,11 +1,8 @@
-# Compiled class file
+# Compiled class files
 *.class
 
-# Log file
+# Log files
 *.log
-
-# BlueJ files
-*.ctxt
 
 # Mobile Tools for Java (J2ME)
 .mtj.tmp/
@@ -13,12 +10,68 @@
 # Package Files #
 *.jar
 *.war
-*.nar
 *.ear
+*.nar
 *.zip
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+# Virtual machine crash logs
 hs_err_pid*
 replay_pid*
+
+# =========================
+# Maven / Gradle
+# =========================
+target/
+build/
+
+# =================================
+# If using Maven Wrapper or Gradle Wrapper
+# =================================
+.mvn/
+.gradle/
+!gradle-wrapper.jar
+
+# =================================
+# Eclipse
+# =================================
+.project
+.classpath
+.settings/
+*.launch
+
+# =================================
+# IntelliJ
+# =================================
+*.iml
+.idea/
+*.iws
+*.ipr
+
+# =================================
+# STS (Spring Tool Suite)
+# =================================
+.apt_generated/
+.factorypath/
+
+# =================================
+# NetBeans
+# =================================
+nbproject/
+*.nbattrs
+
+# =================================
+# OS / Misc
+# =================================
+.DS_Store
+Thumbs.db
+
+# =================================
+# Additional files you might want to exclude
+# =================================
+# If you keep local environment or secrets in .env
+.env
+
+# If you generate coverage reports in a folder named coverage/
+coverage/
