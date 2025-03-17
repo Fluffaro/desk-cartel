@@ -18,5 +18,5 @@ public interface AgentRepository extends JpaRepository<Agent, Long> {
     
     List<Agent> findByLevel(AgentLevel level);
     
-    List<Agent> findByCurrentWorkloadLessThanCapacity();
+    //List<Agent> findByCurrentWorkloadLessThanCapacity();
 } 

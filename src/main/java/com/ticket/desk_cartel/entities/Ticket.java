@@ -5,23 +5,48 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+import java.util.Date;
+
 @Setter
 @Getter
 @Entity@Table(name = "ticket")
 public class Ticket {
 
     @Id    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int ticketId;
+    private Long ticketId;
 
+    @Column
+    private String title;
 
-    @Column    private String title;
-    @Column    private String description;
+    @Column
+    private String description;
+
     @OneToOne    @JoinColumn(name = "clientId")
     @JsonBackReference("account-sentTransactions")
-    private User ticketOwners;
+    private User ticketOwner;
 
-    @OneToOne    @JoinColumn(name = "agentId")
+    @OneToOne
+    @JoinColumn(name = "agentId")
     @JsonBackReference("account-sentTransactions")
-    private Agent assignedTickets;
+    private Agent assignedTicket;
+
+    @Column
+    private int points;
+
+    @Column
+    private LocalDateTime date_started;
+
+    @Column
+    private LocalDateTime completion_date;
+
+    @Column
+    private Status status;
+
+    @Column
+    private Priority priority;
+
+    @Column
+    private String category;
 
 }
