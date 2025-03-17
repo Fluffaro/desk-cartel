@@ -24,11 +24,6 @@ public class Category {
     @Column
     private String description;
 
-    @ManyToOne
-    @JoinColumn(name = "taskId")
-    @JsonBackReference("account-sentTransactions")
-    private Ticket ticket;
-
     public Category(String name, String description) {
         this.name = name;
         this.description = description;
