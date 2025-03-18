@@ -6,6 +6,7 @@ import com.ticket.desk_cartel.entities.Priority;
 import com.ticket.desk_cartel.entities.Status;
 import com.ticket.desk_cartel.entities.Ticket;
 import com.ticket.desk_cartel.services.TicketService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -86,26 +87,28 @@ public class TicketController {
      *
      * @param ticketId The ticket's ID to be updated.
      * @param priority The new priority (can be null if the admin does not wish to update).
-     * @param category The new category (can be null if the admin does not wish to update).
+     * @param categoryId The new category (can be null if the admin does not wish to update).
      * @param status The new status (can be null if the agent does not wish to update).
      * @return Updated ticket details.
      */
 
     @PutMapping("/{ticketId}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')")  // Only admins or agents can access this endpoint
-    public ResponseEntity<Ticket> updateTicket(
+    public ResponseEntity<String> updateTicket(
             @PathVariable Long ticketId,
             @RequestParam(required = false) Priority priority,
-            @RequestParam(required = false) Category category,
-            @RequestParam(required = false) Status status) {
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Status status,
+            @RequestParam(required = false) String token
+    ) {
+        Ticket updateTicket = ticketService.updateTicket(ticketId, priority, categoryId, status, token);
 
-        Ticket updatedTicket = ticketService.updateTicket(ticketId, priority, category, status);
-
-        if (updatedTicket != null) {
-            return ResponseEntity.ok(updatedTicket);
-        } else {
-            return ResponseEntity.notFound().build();
+        if(updateTicket == null){
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Unauthorized or Ticket Not Found");
         }
+
+        return ResponseEntity.ok("Ticket updated successfully");
+
     }
 
 }
