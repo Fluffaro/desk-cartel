@@ -1,9 +1,6 @@
 package com.ticket.desk_cartel.services;
 
-import com.ticket.desk_cartel.entities.Priority;
-import com.ticket.desk_cartel.entities.Status;
-import com.ticket.desk_cartel.entities.Ticket;
-import com.ticket.desk_cartel.entities.User;
+import com.ticket.desk_cartel.entities.*;
 import com.ticket.desk_cartel.repositories.TicketRepository;
 import com.ticket.desk_cartel.repositories.UserRepository;
 import jakarta.security.auth.message.AuthException;
@@ -23,7 +20,7 @@ public class TicketService {
         this.userRepository = userRepository;
     }
 
-    public Ticket createTicket(Long userId, String title, String description, Priority priority, Status status, String category) throws Exception {
+    public Ticket createTicket(Long userId, String title, String description, Priority priority, Status status, Category category) throws Exception {
         Optional<User> userOpt = userRepository.findById(userId);
 
         if (userOpt.isEmpty()) {
