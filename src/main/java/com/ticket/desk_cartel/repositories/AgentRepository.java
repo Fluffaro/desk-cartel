@@ -4,6 +4,7 @@ import com.ticket.desk_cartel.entities.Agent;
 import com.ticket.desk_cartel.entities.AgentLevel;
 import com.ticket.desk_cartel.entities.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -17,6 +18,8 @@ public interface AgentRepository extends JpaRepository<Agent, Long> {
     Optional<Agent> findByUserId(Long userId);
     
     List<Agent> findByLevel(AgentLevel level);
-    
-    //List<Agent> findByCurrentWorkloadLessThanCapacity();
+
+    @Query("SELECT a FROM Agent a WHERE a.currentWorkload < a.capacity")
+    List<Agent> findAvailableAgents();
+
 } 
