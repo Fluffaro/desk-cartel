@@ -3,6 +3,7 @@ package com.ticket.desk_cartel.services;
 import com.ticket.desk_cartel.dto.UserDTO;
 import com.ticket.desk_cartel.entities.User;
 import com.ticket.desk_cartel.repositories.AgentRepository;
+import com.ticket.desk_cartel.repositories.TicketRepository;
 import com.ticket.desk_cartel.repositories.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +13,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import com.ticket.desk_cartel.entities.Agent;
 import com.ticket.desk_cartel.entities.AgentLevel;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -29,15 +31,17 @@ public class UserService implements UserDetailsService {
 
     private final UserRepository userRepository;
     private final AgentRepository agentRepository;
+    private final TicketRepository ticketRepository;
 
     /**
      * Constructor-based dependency injection.
      *
      * @param userRepository Repository for user data access.
      */
-    public UserService(UserRepository userRepository, AgentRepository agentRepository) {
+    public UserService(UserRepository userRepository, AgentRepository agentRepository, TicketRepository ticketRepository) {
         this.userRepository = userRepository;
         this.agentRepository = agentRepository;
+        this.ticketRepository = ticketRepository;
     }
 
     /**
@@ -136,6 +140,7 @@ public class UserService implements UserDetailsService {
     /**
      * Update the role of a user.
      */
+    @Transactional
     public void updateUserRole(Long userId, String role) {
         Optional<User> userOpt = userRepository.findById(userId);
         if (userOpt.isEmpty()) {
@@ -143,15 +148,44 @@ public class UserService implements UserDetailsService {
         }
 
         User user = userOpt.get();
-        user.setRole(role);
-        userRepository.save(user);
 
         if ("AGENT".equalsIgnoreCase(role)) {
-            agentRepository.findByUser(user).orElseGet(() -> {
+            Optional<Agent> existingAgentOpt = agentRepository.findByUser(user);
+
+            if (existingAgentOpt.isPresent()) {
+                Agent existingAgent = existingAgentOpt.get();
+
+                if (existingAgent.isActive()) {
+                    throw new RuntimeException("User is already an active agent.");
+                }
+
+                // Reactivate the agent if they were previously inactive
+                existingAgent.setActive(true);
+                agentRepository.save(existingAgent);
+            } else {
+                // Assign as a new agent
                 Agent newAgent = new Agent(user, AgentLevel.JUNIOR);
-                return agentRepository.save(newAgent);
-            });
+                newAgent.setActive(true);
+                agentRepository.save(newAgent);
+            }
+        } else {
+            // If demoting/removing an agent, ensure they have no ongoing tickets
+            Optional<Agent> agentOpt = agentRepository.findByUser(user);
+            if (agentOpt.isPresent()) {
+                Agent agent = agentOpt.get();
+                int ongoingTickets = ticketRepository.countOngoingTickets(agent);
+
+                if (ongoingTickets > 0) {
+                    throw new RuntimeException("Cannot remove agent role. The agent has ongoing tickets.");
+                }
+
+                agent.setActive(false);
+                agentRepository.save(agent);
+            }
         }
+
+        user.setRole(role);
+        userRepository.save(user);
     }
 
 }

@@ -37,6 +37,9 @@ public class Agent {
     private LocalDateTime createdAt = LocalDateTime.now();
     private LocalDateTime updatedAt = LocalDateTime.now();
 
+    @Column(nullable = false)
+    private boolean isActive = true;
+
     /**
      * Creates a new agent with the specified level.
      * The capacity is automatically set based on the level.
@@ -60,5 +63,9 @@ public class Agent {
         this.level = level;
         this.capacity = level.getCapacity();
         this.updatedAt = LocalDateTime.now();
+    }
+
+    public void setActive(boolean active) {
+        this.isActive = active;
     }
 } 

@@ -5,6 +5,9 @@ import com.ticket.desk_cartel.entities.Priority;
 import com.ticket.desk_cartel.entities.Status;
 import com.ticket.desk_cartel.entities.Ticket;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import com.ticket.desk_cartel.entities.Agent;
 
 import java.util.List;
 
@@ -23,5 +26,8 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     List<Ticket> findByPriority(Priority priority);
     List<Ticket> findByStatus(Status status);
 
+    // ✅ New method: Count ongoing tickets for an agent
+    @Query("SELECT COUNT(t) FROM Ticket t WHERE t.assignedTicket = :agent AND t.status NOT IN ('RESOLVED', 'CLOSED')")
+    int countOngoingTickets(@Param("agent") Agent agent);
 
 }
