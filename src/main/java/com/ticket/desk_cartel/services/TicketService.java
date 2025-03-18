@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -45,7 +46,42 @@ public class TicketService {
     }
 
 
+    public List<Ticket> getAllTickets() {
+        return ticketRepository.findAll();
+    }
+
+    public List<Ticket> getTicketsByUserId(Long userId) {
+        return ticketRepository.findByTicketOwner_Id(userId);
+    }
 
 
+    public List<Ticket> getTicketsByAgent(Long assignedAgent) {
+        return  ticketRepository.findByAssignedTicket_Id(assignedAgent);
+    }
 
+    public Ticket getTicketById(Long ticketId) {
+        Optional<Ticket> ticket = ticketRepository.findById(ticketId);
+        return ticket.orElse(null);
+    }
+
+    //Filter Needs adjustment
+    public List<Ticket> filterTickets(Category category, Priority priority, Status status) {
+        if(category != null && priority != null && status != null){
+            return ticketRepository.findByCategoryAndPriorityAndStatus(category, priority,status);
+        }else if(category != null && priority != null) {
+            return ticketRepository.findByCategoryAndPriority(category, priority);
+        }else if(category != null && status != null) {
+            return ticketRepository.findByCategoryAndStatus(category, status);
+        }else if(status != null && priority != null) {
+            return ticketRepository.findByPriorityAndStatus(priority, status);
+        }else if(status != null ) {
+            return ticketRepository.findByStatus(status);
+        }else if(priority != null ) {
+            return ticketRepository.findByPriority(priority);
+        }else if(category != null ) {
+            return ticketRepository.findByCategory(category);
+        }else {
+            return ticketRepository.findAll();
+        }
+    }
 }
