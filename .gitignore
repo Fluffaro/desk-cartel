@@ -75,3 +75,4 @@ Thumbs.db
 
 # If you generate coverage reports in a folder named coverage/
 coverage/
+*.tmp

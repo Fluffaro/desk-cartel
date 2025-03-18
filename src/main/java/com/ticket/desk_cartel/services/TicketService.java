@@ -20,7 +20,7 @@ public class TicketService {
         this.userRepository = userRepository;
     }
 
-    public Ticket createTicket(Long userId, String title, String description, Status status, Category category) throws Exception {
+    public Ticket createTicket(Long userId, String title, String description, Priority priority, Status status, Category category) throws Exception {
         Optional<User> userOpt = userRepository.findById(userId);
 
         if (userOpt.isEmpty()) {
@@ -34,7 +34,7 @@ public class TicketService {
         ticket.setTicketOwner(user);
         ticket.setPoints(0);
         ticket.setTitle(title);
-        ticket.setPriority(null);
+        ticket.setPriority(priority != null ? priority : Priority.NOT_ASSIGNED);
         ticket.setStatus(status);
         ticket.setDescription(description);
         ticket.setCategory(category);
