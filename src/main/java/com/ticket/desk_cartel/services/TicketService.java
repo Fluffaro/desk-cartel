@@ -1,9 +1,12 @@
 package com.ticket.desk_cartel.services;
 
 import com.ticket.desk_cartel.entities.*;
+import com.ticket.desk_cartel.repositories.CategoryRepository;
 import com.ticket.desk_cartel.repositories.TicketRepository;
 import com.ticket.desk_cartel.repositories.UserRepository;
+import com.ticket.desk_cartel.security.JwtUtil;
 import jakarta.security.auth.message.AuthException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -15,10 +18,14 @@ import java.util.Optional;
 public class TicketService {
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
+    private final JwtUtil jwtUtil;
+    private final CategoryRepository categoryRepository;
 
-    public TicketService(TicketRepository ticketRepository, UserRepository userRepository) {
+    public TicketService(TicketRepository ticketRepository, UserRepository userRepository, JwtUtil jwtUtil, CategoryRepository categoryRepository) {
         this.ticketRepository = ticketRepository;
         this.userRepository = userRepository;
+        this.jwtUtil = jwtUtil;
+        this.categoryRepository = categoryRepository;
     }
 
     public Ticket createTicket(Long userId, String title, String description, Priority priority, Status status, Category category) throws Exception {
@@ -83,5 +90,53 @@ public class TicketService {
         }else {
             return ticketRepository.findAll();
         }
+    }
+
+    /**
+     * Updates the ticket's priority, category, or status.
+     * Admins can update priority and category, while agents can only update status.
+     *
+     * @param ticketId The ID of the ticket to update.
+     * @param priority The new priority to set (optional).
+     * @param categoryId The new category to set (optional).
+     * @param status The new status to set (optional).
+     * @return The updated ticket.
+     */
+    public Ticket updateTicket(Long ticketId, Priority priority, Long categoryId, Status status, String token) {
+        // Retrieve the ticket by its ID
+        Ticket ticket = ticketRepository.findById(ticketId).orElse(null);
+
+        if(ticket == null){
+            return null;
+        }
+
+        String role = jwtUtil.extractRole(token);
+        if("ADMIN".equals(role)) {
+            if(priority != null) {
+                ticket.setPriority(priority);
+            }
+            if(categoryId != null) {
+
+                Category foundCategory = categoryRepository.findById(categoryId).orElse(null);
+                if (foundCategory != null) {
+                    ticket.setCategory(foundCategory);
+                } else {
+                    return null; // If the category is not found, return null
+                }
+            }
+        }else if("AGENT".equals(role)){
+            if(status != null ) {
+                ticket.setStatus(status);
+
+                if(status == Status.COMPLETED) {
+                    ticket.setCompletion_date(LocalDateTime.now());
+                }
+            }
+        }else {
+            return null;
+        }
+
+        return ticketRepository.save(ticket);
+
     }
 }
