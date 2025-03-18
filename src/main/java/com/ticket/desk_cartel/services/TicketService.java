@@ -14,10 +14,12 @@ import java.util.Optional;
 public class TicketService {
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
-    public TicketService(TicketRepository ticketRepository, UserRepository userRepository) {
+    public TicketService(TicketRepository ticketRepository, UserRepository userRepository, NotificationService notificationService) {
         this.ticketRepository = ticketRepository;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     public Ticket createTicket(Long userId, String title, String description, Priority priority, Status status, Category category) throws Exception {
@@ -41,11 +43,60 @@ public class TicketService {
         ticket.setDate_started(LocalDateTime.now());
         ticket.setCompletion_date(null);
 
-        return ticketRepository.save(ticket);
+        Ticket savedTicket = ticketRepository.save(ticket);
+        
+        notificationService.notifyTicketCreated(savedTicket);
+
+        return savedTicket;
     }
 
+    /**
+     * Assign a ticket to an agent and send a notification
+     */
+    public Ticket assignTicket(Long ticketId, Agent agent) throws Exception {
+        Optional<Ticket> ticketOpt = ticketRepository.findById(ticketId);
+        if (ticketOpt.isEmpty()) {
+            throw new Exception("Ticket not found");
+        }
 
+        Ticket ticket = ticketOpt.get();
+        ticket.setAssignedTicket(agent);
+        
+        if (ticket.getStatus() == Status.OPEN) {
+            ticket.setStatus(Status.IN_PROGRESS);
+        }
+        
+        Ticket savedTicket = ticketRepository.save(ticket);
+        
+        notificationService.notifyTicketAssigned(savedTicket);
+        
+        return savedTicket;
+    }
 
+    /**
+     * Update ticket priority and potentially trigger assignment
+     */
+    public Ticket updateTicketPriority(Long ticketId, Priority priority) throws Exception {
+        Optional<Ticket> ticketOpt = ticketRepository.findById(ticketId);
+        if (ticketOpt.isEmpty()) {
+            throw new Exception("Ticket not found");
+        }
 
+        Ticket ticket = ticketOpt.get();
+        
+        ticket.setPriority(priority);
+        Ticket savedTicket = ticketRepository.save(ticket);
+        
+        return savedTicket;
+    }
 
+    /**
+     * Check ticket deadlines and send notifications if needed
+     * This would typically be called by a scheduled task
+     */
+    public void checkTicketDeadlines() {
+        ticketRepository.findAll().stream()
+            .filter(ticket -> ticket.getStatus() != Status.RESOLVED && ticket.getStatus() != Status.CLOSED)
+            .forEach(ticket -> notificationService.notifyDeadlineWarning(ticket));
+    }
 }
