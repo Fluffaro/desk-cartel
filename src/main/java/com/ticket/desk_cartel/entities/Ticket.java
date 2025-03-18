@@ -7,6 +7,7 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.Date;
+import java.util.List;
 
 @Setter
 @Getter
@@ -53,5 +54,10 @@ public class Ticket {
     @ManyToOne
     @JoinColumn(name ="category_id")
     private Category category;
+
+    //might cause issue in ticket getting
+    //need to be prevented 
+    @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL)
+    private List<Comment> comments;
 
 }
