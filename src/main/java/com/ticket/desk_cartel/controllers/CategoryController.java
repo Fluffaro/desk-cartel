@@ -20,6 +20,11 @@ public class CategoryController {
         return ResponseEntity.ok(categoryService.getAllCategories());
     }
 
+    @GetMapping("/active")
+    public ResponseEntity<?> getActiveCategories(){
+        return ResponseEntity.ok(categoryService.getActiveCategories());
+    }
+
     @PostMapping("/create")
     public ResponseEntity<?> createCategory(@RequestBody Category category) throws AuthException {
         return ResponseEntity.ok(categoryService.categoryCreation(category.getName(), category.getDescription(), category.getPoints(), category.getIsActive()));
@@ -42,7 +47,21 @@ public class CategoryController {
         return ResponseEntity.ok(categoryService.updateCategory(id, category.getName(), category.getDescription(),category.getIsActive(), category.getPoints()));
     }
 
+}
 
+// Create a separate controller for public category access
+@RestController
+@RequestMapping("/api/categories")
+class PublicCategoryController {
+    private final CategoryService categoryService;
 
+    public PublicCategoryController(CategoryService categoryService) {
+        this.categoryService = categoryService;
+    }
 
+    // Public endpoint for users to get active categories when creating tickets
+    @GetMapping("/active")
+    public ResponseEntity<?> getActiveCategories(){
+        return ResponseEntity.ok(categoryService.getActiveCategories());
+    }
 }
