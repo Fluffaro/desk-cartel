@@ -60,6 +60,15 @@ dependencies {
 	// Testing
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+	implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+	// STOMP Messaging Support (if needed)
+
+
+	// SockJS and STOMP WebSocket Client (for frontend support)
+	implementation 'org.webjars:sockjs-client:1.1.2'
+	implementation 'org.webjars:stomp-websocket:2.3.3'
 }
 
 tasks.named('test') {

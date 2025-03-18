@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STOMP Chat Tester</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.5.1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #chat { border: 1px solid #ccc; padding: 10px; width: 50%; height: 300px; overflow-y: auto; }
+        input, button { padding: 10px; margin-top: 10px; display: block; }
+        button { cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<h2>STOMP Chat Tester</h2>
+
+<label>JWT Token:</label>
+<input type="text" id="token" placeholder="Enter your JWT token">
+
+<label>Username:</label>
+<input type="text" id="username" placeholder="Your username">
+
+<button onclick="connect()">Connect</button>
+
+<h3>Chat</h3>
+<div id="chat"></div>
+
+<label>Public Message:</label>
+<input type="text" id="publicMessage" placeholder="Type a message">
+<button onclick="sendPublicMessage()">Send Public</button>
+
+<label>Private Message (to user):</label>
+<input type="text" id="receiver" placeholder="Recipient username">
+<input type="text" id="privateMessage" placeholder="Type a private message">
+<button onclick="sendPrivateMessage()">Send Private</button>
+
+<script>
+    let stompClient = null;
+    let username = "";
+
+    function connect() {
+        const token = document.getElementById("token").value;
+        username = document.getElementById("username").value;
+
+        if (!token || !username) {
+            alert("Please enter a JWT token and username!");
+            return;
+        }
+
+        const socket = new SockJS(`http://localhost:8080/ws-chat-sockjs?token=${token}`);
+        stompClient = Stomp.over(socket);
+
+        stompClient.connect({}, function (frame) {
+            console.log("✅ Connected:", frame);
+            document.getElementById("chat").innerHTML += "<b>Connected as " + username + "</b><br>";
+
+            // Subscribe to Public Messages
+            stompClient.subscribe("/topic/messages", function (message) {
+                displayMessage("📢 Public: " + message.body);
+            });
+
+            // Subscribe to Private Messages
+            stompClient.subscribe("/user/queue/private-messages", function (message) {
+                displayMessage("📩 Private: " + message.body);
+            });
+
+        }, function (error) {
+            console.error("❌ Connection Error:", error);
+        });
+    }
+
+    function sendPublicMessage() {
+        if (!stompClient) {
+            alert("❌ Not connected!");
+            return;
+        }
+        const message = document.getElementById("publicMessage").value;
+        stompClient.send("/app/chat", {}, JSON.stringify({ senderUsername: username, messageContent: message }));
+        document.getElementById("publicMessage").value = "";
+    }
+
+    function sendPrivateMessage() {
+        if (!stompClient) {
+            alert("❌ Not connected!");
+            return;
+        }
+        const receiver = document.getElementById("receiver").value;
+        const message = document.getElementById("privateMessage").value;
+        stompClient.send("/app/private-chat", {}, JSON.stringify({ senderUsername: username, receiverUsername: receiver, messageContent: message }));
+        document.getElementById("privateMessage").value = "";
+    }
+
+    function displayMessage(message) {
+        document.getElementById("chat").innerHTML += message + "<br>";
+    }
+</script>
+
+</body>
+</html>
