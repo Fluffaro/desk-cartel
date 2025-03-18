@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STOMP Chat Tester</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.5.1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; max-width: 800px; margin: 0 auto; padding: 20px; }
+        #chat { border: 1px solid #ccc; padding: 10px; width: 100%; height: 300px; overflow-y: auto; margin-bottom: 20px; }
+        input, button, select { padding: 10px; margin-top: 10px; }
+        button { cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 4px; }
+        .input-group { margin-bottom: 15px; }
+        .input-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .input-group input, .input-group select { width: 100%; box-sizing: border-box; }
+        .connection-info { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .notice { background-color: #fff3cd; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
+        .message-container {
+            display: flex;
+            gap: 20px;
+        }
+        .message-section {
+            flex: 1;
+        }
+        .chat-box {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+        .conversation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        #conversationPartners {
+            flex: 1;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>STOMP Chat Tester</h1>
+
+
+<div class="connection-info">
+    <div class="input-group">
+        <label for="token">JWT Token:</label>
+        <input type="text" id="token" placeholder="Enter your JWT token">
+    </div>
+
+    <div class="input-group">
+        <label for="username">Username:</label>
+        <input type="text" id="username" placeholder="Your username" value="testuser">
+    </div>
+
+    <button onclick="connect()">Connect to WebSocket</button>
+    <button onclick="fetchTestToken()">Get Test Token</button>
+    <div id="connectionStatus"></div>
+</div>
+
+<h2>Chat Messages</h2>
+<div class="message-container">
+    <div class="message-section">
+        <h3>Public Chat</h3>
+        <div id="publicChat" class="chat-box"></div>
+    </div>
+    <div class="message-section">
+        <div class="conversation-header">
+            <h3>Private Messages</h3>
+            <select id="conversationPartners" onchange="switchConversation()">
+                <option value="">Select a conversation</option>
+            </select>
+        </div>
+        <div id="privateChat" class="chat-box"></div>
+    </div>
+</div>
+
+<div class="input-group">
+    <label>Public Message:</label>
+    <input type="text" id="publicMessage" placeholder="Type a message">
+    <button onclick="sendPublicMessage()">Send Public</button>
+</div>
+
+<div class="input-group">
+    <label>Private Message:</label>
+    <select id="receiver" onchange="updatePrivateMessageRecipient()">
+        <option value="">Select recipient</option>
+    </select>
+    <input type="text" id="privateMessage" placeholder="Type a private message">
+    <button onclick="sendPrivateMessage()">Send Private</button>
+</div>
+
+<div class="input-group">
+    <label>Debug Tools:</label>
+    <button onclick="checkActiveSessions()">Check Active Sessions</button>
+    <button onclick="loadChatHistory()">Fetch History</button>
+</div>
+
+<script>
+    let stompClient = null;
+    let username = "";
+    let reconnectTimeout = null;
+    let reconnectCount = 0;
+    let maxReconnectAttempts = 5;
+    let reconnectDelay = 2000; // Start with 2 seconds
+    let shouldReconnect = false;
+    let socket = null;
+    let originalToken = "";
+    let conversationPartners = []; // Store conversation partners
+    let privateMessageHistory = {}; // Map of username -> message history
+
+    function fetchTestToken() {
+        const usernameValue = document.getElementById("username").value || "testuser";
+        fetch(`http://localhost:8080/api/chat/test-token/${usernameValue}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.text();
+            })
+            .then(token => {
+                document.getElementById("token").value = token;
+                document.getElementById("connectionStatus").innerHTML = 
+                    "<p style='color:green'>✅ Token fetched successfully! Click 'Connect' to start chatting.</p>";
+            })
+            .catch(error => {
+                document.getElementById("connectionStatus").innerHTML = 
+                    `<p style='color:red'>❌ Error fetching token: ${error.message}</p>`;
+                console.error("Error fetching token:", error);
+            });
+    }
+
+    function disconnect() {
+        if (stompClient && stompClient.connected) {
+            console.log("🔌 Disconnecting STOMP client properly...");
+            // Display status to the user
+            document.getElementById("connectionStatus").innerHTML = "<p>🔄 Disconnecting...</p>";
+            
+            // Send a DISCONNECT frame and execute callback when complete
+            stompClient.disconnect(() => {
+                console.log("🔌 Disconnected successfully");
+                document.getElementById("connectionStatus").innerHTML = "<p style='color:orange'>Disconnected from server</p>";
+                
+                // Reset variables
+                stompClient = null;
+                socket = null;
+                shouldReconnect = false;
+            }, {});
+
+            // Reset reconnection variables
+            clearTimeout(reconnectTimeout);
+            reconnectCount = 0;
+        } else {
+            console.log("🔌 Not connected, nothing to disconnect");
+            document.getElementById("connectionStatus").innerHTML = "<p>Not connected</p>";
+        }
+    }
+
+    function connect() {
+        const token = document.getElementById("token").value;
+        username = document.getElementById("username").value;
+
+        if (!token || !username) {
+            alert("Please enter a JWT token and username!");
+            return;
+        }
+
+        // Store original token for reconnection
+        originalToken = token;
+        
+        // Set the reconnect flag
+        shouldReconnect = true;
+        
+        // Reset reconnection counter
+        reconnectCount = 0;
+
+        // Start the connection process
+        connectWithToken(token);
+    }
+
+    function connectWithToken(token) {
+        if (!shouldReconnect) {
+            console.log("🛑 Connection attempt aborted because shouldReconnect is false");
+            return;
+        }
+
+        const encodedToken = encodeURIComponent(token);
+        socket = new SockJS(`http://localhost:8080/ws-chat-sockjs?token=${encodedToken}`);
+        
+        console.log(`Attempting to connect to: http://localhost:8080/ws-chat-sockjs?token=${encodedToken.substring(0, 10)}...`);
+        document.getElementById("connectionStatus").innerHTML = "<p>🔄 Connecting...</p>";
+        
+        stompClient = Stomp.over(socket);
+        
+        // Configure STOMP client
+        stompClient.debug = function(str) {
+            console.log("STOMP: " + str);
+        };
+        
+        // Enable heartbeats - send every 10s, expect every 10s
+        stompClient.heartbeat.outgoing = 10000;
+        stompClient.heartbeat.incoming = 10000;
+
+        // More robust connection with retry logic
+        const connectCallback = function(frame) {
+            console.log("✅ Connected:", frame);
+            console.log("👤 Username:", username);
+            console.log("🔄 Connection complete - subscribing to topics");
+            document.getElementById("publicChat").innerHTML += "<b>Connected as " + username + "</b><br>";
+            document.getElementById("privateChat").innerHTML += "<b>Connected as " + username + "</b><br>";
+            document.getElementById("connectionStatus").innerHTML = "<p style='color:green'>✅ Connected!</p>";
+
+            // Add disconnect button to UI
+            document.getElementById("connectionStatus").innerHTML += 
+                "<button onclick='disconnect()' style='margin-top:10px;background-color:#ff5555;'>Disconnect</button>";
+
+            // Reset reconnection counter on successful connection
+            reconnectCount = 0;
+
+            // Subscribe to Public Messages
+            console.log("📌 Subscribing to public messages: /topic/messages");
+            stompClient.subscribe("/topic/messages", function (message) {
+                console.log("📢 Received public message:", message);
+                try {
+                    const messageData = JSON.parse(message.body);
+                    displayMessage(`📢 Public from ${messageData.senderUsername}: ${messageData.messageContent}`, "public", messageData.timestamp);
+                } catch (e) {
+                    displayMessage("📢 Public: " + message.body, "public");
+                }
+            });
+
+            // Subscribe to Private Messages - use the correct destination pattern
+            console.log("📌 Subscribing to private messages: /user/queue/private-messages");
+            stompClient.subscribe("/user/queue/private-messages", function (message) {
+                console.log("⭐ RECEIVED PRIVATE MESSAGE:", message);
+                console.log("⭐ Message headers:", message.headers);
+                console.log("⭐ Message body:", message.body);
+                
+                try {
+                    const messageData = JSON.parse(message.body);
+                    console.log("⭐ Parsed message data:", messageData);
+                    
+                    // Store message in conversation history
+                    const otherUser = messageData.senderUsername;
+                    if (!privateMessageHistory[otherUser]) {
+                        privateMessageHistory[otherUser] = [];
+                        
+                        // Add to conversation partners if not already there
+                        if (!conversationPartners.includes(otherUser)) {
+                            conversationPartners.push(otherUser);
+                            updateConversationDropdowns();
+                        }
+                    }
+                    
+                    privateMessageHistory[otherUser].push(messageData);
+                    
+                    // Display in the current conversation if it matches
+                    const currentPartner = document.getElementById("conversationPartners").value;
+                    if (currentPartner === otherUser || currentPartner === "") {
+                        displayMessage(`📩 Private from ${messageData.senderUsername}: ${messageData.messageContent}`, "private", messageData.timestamp);
+                    }
+                    
+                    // If no conversation is selected, select this one
+                    if (document.getElementById("conversationPartners").value === "") {
+                        document.getElementById("conversationPartners").value = otherUser;
+                        document.getElementById("receiver").value = otherUser;
+                        switchConversation();
+                    }
+                } catch (e) {
+                    console.error("⭐ Error parsing private message:", e);
+                    displayMessage("📩 Private: " + message.body, "private");
+                }
+            });
+
+            // Subscribe to Error Channel
+            stompClient.subscribe("/user/queue/errors", function (message) {
+                try {
+                    const errorData = JSON.parse(message.body);
+                    console.error("WebSocket Error:", errorData);
+                    displayMessage(`❌ Error: ${errorData.message}`, "error");
+                } catch (e) {
+                    displayMessage(`❌ Error: ${message.body}`, "error");
+                }
+            });
+
+            // Subscribe to Message Sent Confirmations
+            stompClient.subscribe("/user/queue/sent-confirmation", function (message) {
+                console.log("⭐ RECEIVED SENT CONFIRMATION:", message);
+                console.log("⭐ Confirmation headers:", message.headers);
+                console.log("⭐ Confirmation body:", message.body);
+                
+                try {
+                    const confirmationData = JSON.parse(message.body);
+                    console.log("⭐ Parsed confirmation data:", confirmationData);
+                    displayMessage(`✅ Message to ${confirmationData.recipient} sent successfully`, "success");
+                    
+                    // Add sent message to conversation history
+                    const otherUser = confirmationData.recipient;
+                    if (!privateMessageHistory[otherUser]) {
+                        privateMessageHistory[otherUser] = [];
+                    }
+                    
+                    // Create a message object from confirmation data
+                    const sentMessage = {
+                        senderUsername: username,
+                        receiverUsername: otherUser,
+                        messageContent: confirmationData.messageContent,
+                        timestamp: new Date()
+                    };
+                    
+                    privateMessageHistory[otherUser].push(sentMessage);
+                } catch (e) {
+                    console.error("⭐ Error parsing confirmation:", e);
+                    displayMessage(`✅ Message sent`, "success");
+                }
+            });
+            
+            // Subscribe to Server Heartbeat
+            console.log("📌 Subscribing to heartbeat messages: /user/queue/heartbeat");
+            stompClient.subscribe("/user/queue/heartbeat", function (message) {
+                // Log less frequently to avoid console spam
+                console.debug("💓 Heartbeat received", message.body);
+                
+                // Update a heartbeat indicator in the UI (optional)
+                const connectionStatus = document.getElementById("connectionStatus");
+                if (connectionStatus.innerHTML.includes("✅ Connected!")) {
+                    const timestamp = new Date().toLocaleTimeString();
+                    connectionStatus.innerHTML = 
+                        `<p style='color:green'>✅ Connected! (Last heartbeat: ${timestamp})</p>` +
+                        `<button onclick='disconnect()' style='margin-top:10px;background-color:#ff5555;'>Disconnect</button>`;
+                }
+            });
+            
+            // Subscribe to Chat History
+            console.log("📌 Subscribing to chat history: /user/queue/chat-history");
+            stompClient.subscribe("/user/queue/chat-history", function (message) {
+                console.log("📚 Received chat history:", message);
+                
+                try {
+                    const historyData = JSON.parse(message.body);
+                    console.log("📚 Parsed history data:", historyData);
+                    
+                    // Clear existing messages in the appropriate chat
+                    if (historyData.type === "public") {
+                        document.getElementById("publicChat").innerHTML = "<b>Public Chat History:</b><br>";
+                        
+                        // Display each message in the history
+                        if (historyData.messages && Array.isArray(historyData.messages)) {
+                            historyData.messages.forEach(msg => {
+                                displayMessage(`📜 ${msg.senderUsername}: ${msg.messageContent}`, "public", msg.timestamp);
+                            });
+                            displayMessage(`--- End of history (${historyData.messages.length} messages) ---`, "public");
+                        }
+                    } else if (historyData.type === "private") {
+                        // Handle private chat history
+                        const otherUser = historyData.otherUser;
+                        
+                        // Store the history for this conversation partner
+                        privateMessageHistory[otherUser] = historyData.messages || [];
+                        
+                        // Add this user to conversation partners if not already there
+                        if (!conversationPartners.includes(otherUser)) {
+                            conversationPartners.push(otherUser);
+                            updateConversationDropdowns();
+                        }
+                        
+                        // If this is the currently selected conversation, display it
+                        const currentPartner = document.getElementById("conversationPartners").value;
+                        if (currentPartner === otherUser || currentPartner === "") {
+                            displayPrivateConversation(otherUser);
+                        }
+                    }
+                } catch (e) {
+                    console.error("📚 Error parsing chat history:", e);
+                    displayMessage(`❌ Error loading chat history: ${e.message}`, "error");
+                }
+            });
+            
+            // Subscribe to conversation partners list
+            console.log("📌 Subscribing to conversation partners: /user/queue/conversation-partners");
+            stompClient.subscribe("/user/queue/conversation-partners", function (message) {
+                console.log("👥 Received conversation partners:", message);
+                
+                try {
+                    const data = JSON.parse(message.body);
+                    console.log("👥 Parsed conversation partners data:", data);
+                    
+                    if (data.partners && Array.isArray(data.partners)) {
+                        conversationPartners = data.partners;
+                        updateConversationDropdowns();
+                    }
+                } catch (e) {
+                    console.error("👥 Error parsing conversation partners:", e);
+                }
+            });
+            
+            // Request chat history after connecting
+            loadChatHistory();
+        };
+
+        const errorCallback = function(error) {
+            console.error("❌ Connection Error:", error);
+            document.getElementById("publicChat").innerHTML += "<b style='color:red'>Connection Error: " + error + "</b><br>";
+            document.getElementById("privateChat").innerHTML += "<b style='color:red'>Connection Error: " + error + "</b><br>";
+            document.getElementById("connectionStatus").innerHTML = 
+                `<p style='color:red'>❌ Connection failed: ${error}</p>`;
+            
+            // If we should reconnect, attempt to do so with exponential backoff
+            if (shouldReconnect && reconnectCount < maxReconnectAttempts) {
+                reconnectCount++;
+                let delay = reconnectDelay * Math.pow(1.5, reconnectCount-1); // Exponential backoff
+                delay = Math.min(delay, 30000); // Cap at 30 seconds
+                
+                document.getElementById("connectionStatus").innerHTML += 
+                    `<p style='color:orange'>Attempting to reconnect in ${Math.round(delay/1000)} seconds... (Attempt ${reconnectCount}/${maxReconnectAttempts})</p>`;
+                
+                console.log(`🔄 Reconnect attempt ${reconnectCount}/${maxReconnectAttempts} in ${delay}ms`);
+                
+                clearTimeout(reconnectTimeout);
+                reconnectTimeout = setTimeout(() => {
+                    connectWithToken(originalToken); 
+                }, delay);
+            } else if (reconnectCount >= maxReconnectAttempts) {
+                shouldReconnect = false;
+                document.getElementById("connectionStatus").innerHTML += 
+                    `<p style='color:red'>Maximum reconnection attempts reached. Please reconnect manually.</p>
+                    <button onclick='connect()' style='margin-top:10px;'>Try Connect Again</button>`;
+            }
+        };
+
+        // Monitor WebSocket for errors and unexpected closes
+        socket.onclose = function(event) {
+            console.log(`🔌 WebSocket closed: ${event.code} - ${event.reason}`);
+            
+            // If it's not a normal closure, and we should reconnect, attempt to do so
+            if (event.code !== 1000 && shouldReconnect) {
+                if (reconnectCount < maxReconnectAttempts) {
+                    reconnectCount++;
+                    let delay = reconnectDelay * Math.pow(1.5, reconnectCount-1); // Exponential backoff
+                    delay = Math.min(delay, 30000); // Cap at 30 seconds
+                    
+                    document.getElementById("connectionStatus").innerHTML = 
+                        `<p style='color:orange'>Connection closed. Attempting to reconnect in ${Math.round(delay/1000)} seconds... (Attempt ${reconnectCount}/${maxReconnectAttempts})</p>`;
+                    
+                    console.log(`🔄 Reconnect attempt ${reconnectCount}/${maxReconnectAttempts} in ${delay}ms`);
+                    
+                    clearTimeout(reconnectTimeout);
+                    reconnectTimeout = setTimeout(() => {
+                        connectWithToken(originalToken); 
+                    }, delay);
+                } else {
+                    shouldReconnect = false;
+                    document.getElementById("connectionStatus").innerHTML = 
+                        `<p style='color:red'>Maximum reconnection attempts reached. Please reconnect manually.</p>
+                        <button onclick='connect()' style='margin-top:10px;'>Try Connect Again</button>`;
+                }
+            }
+        };
+
+        // Connect with explicit connect headers
+        const connectHeaders = {
+            username: username,
+            token: token,
+            "heart-beat": "10000,10000" // Client sends heartbeat every 10s, expects server heartbeat every 10s
+        };
+        
+        stompClient.connect(connectHeaders, connectCallback, errorCallback);
+    }
+
+    // Check connection status every 10 seconds
+    setInterval(function() {
+        if (stompClient && !stompClient.connected && shouldReconnect) {
+            console.log("⚠️ Detected disconnection in periodic check");
+            
+            if (reconnectCount < maxReconnectAttempts) {
+                reconnectCount++;
+                let delay = reconnectDelay * Math.pow(1.5, reconnectCount-1); // Exponential backoff
+                delay = Math.min(delay, 30000); // Cap at 30 seconds
+                
+                document.getElementById("connectionStatus").innerHTML = 
+                    `<p style='color:orange'>Connection lost. Attempting to reconnect in ${Math.round(delay/1000)} seconds... (Attempt ${reconnectCount}/${maxReconnectAttempts})</p>`;
+                
+                console.log(`🔄 Reconnect attempt ${reconnectCount}/${maxReconnectAttempts} in ${delay}ms`);
+                
+                clearTimeout(reconnectTimeout);
+                reconnectTimeout = setTimeout(() => {
+                    connectWithToken(originalToken); 
+                }, delay);
+            } else {
+                shouldReconnect = false;
+                document.getElementById("connectionStatus").innerHTML = 
+                    `<p style='color:red'>Maximum reconnection attempts reached. Please reconnect manually.</p>
+                    <button onclick='connect()' style='margin-top:10px;'>Try Connect Again</button>`;
+            }
+        }
+    }, 10000);
+
+    function sendPublicMessage() {
+        if (!stompClient || !stompClient.connected) {
+            alert("❌ Not connected!");
+            return;
+        }
+        const message = document.getElementById("publicMessage").value;
+        stompClient.send("/app/chat", {}, JSON.stringify({ 
+            senderUsername: username, 
+            receiverUsername: "PUBLIC_CHAT",
+            messageContent: message 
+        }));
+        document.getElementById("publicMessage").value = "";
+    }
+
+    function sendPrivateMessage() {
+        if (!stompClient || !stompClient.connected) {
+            alert("❌ Not connected!");
+            return;
+        }
+        const receiver = document.getElementById("receiver").value;
+        const message = document.getElementById("privateMessage").value;
+        
+        if (!receiver) {
+            alert("Please select a recipient!");
+            return;
+        }
+        
+        if (!message) {
+            alert("Please enter a message!");
+            return;
+        }
+        
+        stompClient.send("/app/private-chat", {}, JSON.stringify({ 
+            senderUsername: username, 
+            receiverUsername: receiver, 
+            messageContent: message 
+        }));
+        
+        document.getElementById("privateMessage").value = "";
+    }
+    
+    function updateConversationDropdowns() {
+        const partnerSelect = document.getElementById("conversationPartners");
+        const receiverSelect = document.getElementById("receiver");
+        
+        // Save current selections
+        const currentPartner = partnerSelect.value;
+        const currentReceiver = receiverSelect.value;
+        
+        // Clear existing options except the first one
+        while (partnerSelect.options.length > 1) {
+            partnerSelect.remove(1);
+        }
+        
+        while (receiverSelect.options.length > 1) {
+            receiverSelect.remove(1);
+        }
+        
+        // Add each conversation partner
+        conversationPartners.forEach(partner => {
+            const partnerOption = new Option(partner, partner);
+            const receiverOption = new Option(partner, partner);
+            
+            partnerSelect.add(partnerOption);
+            receiverSelect.add(receiverOption);
+        });
+        
+        // Restore previous selections if they exist
+        if (currentPartner && conversationPartners.includes(currentPartner)) {
+            partnerSelect.value = currentPartner;
+        }
+        
+        if (currentReceiver && conversationPartners.includes(currentReceiver)) {
+            receiverSelect.value = currentReceiver;
+        }
+    }
+    
+    function switchConversation() {
+        const partnerSelect = document.getElementById("conversationPartners");
+        const selectedPartner = partnerSelect.value;
+        
+        if (selectedPartner) {
+            // Update the receiver dropdown to match
+            document.getElementById("receiver").value = selectedPartner;
+            
+            // Display the conversation
+            displayPrivateConversation(selectedPartner);
+        }
+    }
+    
+    function updatePrivateMessageRecipient() {
+        const receiverSelect = document.getElementById("receiver");
+        const selectedReceiver = receiverSelect.value;
+        
+        if (selectedReceiver) {
+            // Update the conversation dropdown to match
+            document.getElementById("conversationPartners").value = selectedReceiver;
+            
+            // Display the conversation
+            displayPrivateConversation(selectedReceiver);
+        }
+    }
+    
+    function displayPrivateConversation(otherUser) {
+        const privateChatDiv = document.getElementById("privateChat");
+        privateChatDiv.innerHTML = `<b>Private Chat with ${otherUser}:</b><br>`;
+        
+        // Get messages for this conversation
+        const messages = privateMessageHistory[otherUser] || [];
+        
+        if (messages.length > 0) {
+            messages.forEach(msg => {
+                const prefix = msg.senderUsername === username ? "You" : msg.senderUsername;
+                displayMessage(`📜 ${prefix}: ${msg.messageContent}`, "private", msg.timestamp);
+            });
+        } else {
+            displayMessage("No messages yet. Start a conversation!", "private");
+        }
+    }
+
+    function displayMessage(message, type, timestamp) {
+        let chatDiv;
+        
+        // Determine which chat box to use
+        if (type === "private") {
+            chatDiv = document.getElementById("privateChat");
+        } else if (type === "public") {
+            chatDiv = document.getElementById("publicChat");
+        } else {
+            // Default to the public chat
+            chatDiv = document.getElementById("publicChat");
+        }
+        
+        // Format timestamp if provided
+        let timeString = "";
+        if (timestamp) {
+            let date;
+            if (typeof timestamp === 'string') {
+                date = new Date(timestamp);
+            } else if (timestamp instanceof Date) {
+                date = timestamp;
+            }
+            
+            if (date && !isNaN(date.getTime())) {
+                timeString = `<span style="color: #888; font-size: 0.8em;">[${date.toLocaleTimeString()}]</span> `;
+            }
+        }
+        
+        // Format based on message type
+        if (type === "error") {
+            chatDiv.innerHTML += `<div style="color: red; font-weight: bold;">${timeString}${message}</div>`;
+        } else if (type === "success") {
+            chatDiv.innerHTML += `<div style="color: green; font-style: italic;">${timeString}${message}</div>`;
+        } else if (type === "debug") {
+            // Debug messages go to both chats
+            document.getElementById("publicChat").innerHTML += `<div style="color: blue; font-family: monospace; font-size: 0.8em;">${timeString}${message}</div>`;
+            document.getElementById("privateChat").innerHTML += `<div style="color: blue; font-family: monospace; font-size: 0.8em;">${timeString}${message}</div>`;
+            return; // Already added to both chats
+        } else {
+            chatDiv.innerHTML += `${timeString}${message}<br>`;
+        }
+        
+        // Auto-scroll to bottom
+        chatDiv.scrollTop = chatDiv.scrollHeight;
+    }
+
+    function checkActiveSessions() {
+        fetch('http://localhost:8080/api/chat/debug/active-sessions')
+            .then(response => response.json())
+            .then(data => {
+                console.log("🔍 Active Sessions:", data);
+                displayMessage(`🔍 Active Sessions: ${JSON.stringify(data)}`, "debug");
+            })
+            .catch(error => {
+                console.error("Error checking sessions:", error);
+                displayMessage(`❌ Error checking sessions: ${error.message}`, "error");
+            });
+    }
+
+    function loadChatHistory() {
+        if (!stompClient || !stompClient.connected) {
+            console.log("Cannot load chat history - not connected");
+            return;
+        }
+        
+        console.log("🔄 Requesting chat history");
+        
+        // First, clear existing messages to prepare for loading
+        document.getElementById("publicChat").innerHTML = "<b>Loading message history...</b><br>";
+        document.getElementById("privateChat").innerHTML = "<b>Loading private messages...</b><br>";
+        
+        // Reset conversation partners and history
+        conversationPartners = [];
+        privateMessageHistory = {};
+        updateConversationDropdowns();
+        
+        // Send a message to request history via WebSocket (primary method)
+        stompClient.send("/app/load-history", {}, JSON.stringify({}));
+        
+        // As a fallback, also try the REST API (in case WebSocket is having issues)
+        setTimeout(() => {
+            // Only fetch using REST API if the WebSocket didn't already load messages
+            const publicChatDiv = document.getElementById("publicChat");
+            if (publicChatDiv.innerHTML.includes("Loading message history")) {
+                console.log("WebSocket history not received yet, trying REST API...");
+                fetchMessageHistoryFromAPI();
+            }
+        }, 3000); // Wait 3 seconds for WebSocket response before trying REST
+    }
+    
+    function fetchMessageHistoryFromAPI() {
+        // First get conversation partners
+        fetch(`http://localhost:8080/api/chat/conversation-partners?username=${username}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log("👥 Fetched conversation partners via REST API:", data);
+                
+                // Update conversation partners
+                if (data && Array.isArray(data)) {
+                    conversationPartners = data;
+                    updateConversationDropdowns();
+                }
+                
+                // Now fetch public messages
+                fetchPublicMessages();
+                
+                // And fetch private messages for each partner
+                if (data && Array.isArray(data) && data.length > 0) {
+                    data.forEach(partner => {
+                        fetchPrivateMessagesWithPartner(partner);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error("❌ Error fetching conversation partners:", error);
+                // Still try to fetch public and some default private messages
+                fetchPublicMessages();
+                fetchDefaultPrivateMessages();
+            });
+    }
+    
+    function fetchPublicMessages() {
+        // Fetch public messages
+        fetch(`http://localhost:8080/api/chat/public-messages/recent`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log("📚 Fetched recent public messages via REST API:", data);
+                
+                // Only update if we haven't already received messages via WebSocket
+                const publicChatDiv = document.getElementById("publicChat");
+                if (publicChatDiv.innerHTML.includes("Loading message history")) {
+                    // Clear loading message
+                    publicChatDiv.innerHTML = "<b>Public Chat History:</b><br>";
+                    
+                    // Display each message in the history
+                    if (data && Array.isArray(data)) {
+                        data.forEach(msg => {
+                            displayMessage(`📜 ${msg.senderUsername}: ${msg.messageContent}`, "public", msg.timestamp);
+                        });
+                        displayMessage(`--- End of history (${data.length} messages) ---`, "public");
+                    } else {
+                        displayMessage("No public message history available", "public");
+                    }
+                }
+            })
+            .catch(error => {
+                console.error("❌ Error fetching public messages via REST API:", error);
+                displayMessage(`❌ Error loading public messages: ${error.message}`, "error");
+            });
+    }
+    
+    function fetchPrivateMessagesWithPartner(partnerUsername) {
+        fetch(`http://localhost:8080/api/chat/history?sender=${username}&receiver=${partnerUsername}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log(`📚 Fetched private messages with ${partnerUsername}:`, data);
+                
+                if (data && Array.isArray(data)) {
+                    // Store messages for this conversation
+                    privateMessageHistory[partnerUsername] = data;
+                    
+                    // If this is the current conversation, display it
+                    const currentPartner = document.getElementById("conversationPartners").value;
+                    if (currentPartner === partnerUsername) {
+                        displayPrivateConversation(partnerUsername);
+                    }
+                    
+                    // If no conversation is selected yet and we have messages, select this one
+                    if (document.getElementById("conversationPartners").value === "" && data.length > 0) {
+                        document.getElementById("conversationPartners").value = partnerUsername;
+                        document.getElementById("receiver").value = partnerUsername;
+                        displayPrivateConversation(partnerUsername);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error(`❌ Error fetching messages with ${partnerUsername}:`, error);
+            });
+    }
+    
+    function fetchDefaultPrivateMessages() {
+        // List of common users to check for conversations with
+        const commonUsers = ["admin", "support", "test", "neil", "marie"];
+        
+        // For each potential user, try to fetch conversation history
+        commonUsers.forEach(otherUser => {
+            if (otherUser === username) return; // Skip yourself
+            
+            fetchPrivateMessagesWithPartner(otherUser);
+        });
+    }
+</script>
+
+</body>
+</html>

@@ -19,7 +19,11 @@ public interface AgentRepository extends JpaRepository<Agent, Long> {
     
     List<Agent> findByLevel(AgentLevel level);
 
+    // Custom query to find agents with available capacity
     @Query("SELECT a FROM Agent a WHERE a.currentWorkload < a.capacity")
     List<Agent> findAvailableAgents();
+    
+    // Alternative method using Spring Data naming convention
+    List<Agent> findByCurrentWorkloadLessThan(int capacity);
 
 } 

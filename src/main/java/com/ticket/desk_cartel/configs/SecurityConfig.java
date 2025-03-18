@@ -49,9 +49,15 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui.html").permitAll()
                         .requestMatchers("/swagger-ui/**").permitAll()
                         .requestMatchers("/v3/api-docs/**").permitAll()
-
+                        
                         // Admin-only endpoints
                         .requestMatchers("/admin/**").hasRole("ADMIN")
+                        
+                        // WebSocket and chat endpoints
+                        .requestMatchers("/ws-chat/**").permitAll()
+                        .requestMatchers("/ws-chat-sockjs/**").permitAll()
+                        .requestMatchers("/api/chat/public-messages/**").permitAll()
+                        .requestMatchers("/api/chat/history").permitAll()
                         
                         // Any other request requires authentication
                         .anyRequest().authenticated()
@@ -70,7 +76,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:8080"));
+        config.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:5500"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         config.setAllowCredentials(true);
