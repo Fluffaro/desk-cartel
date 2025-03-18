@@ -29,10 +29,10 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
                                    ServerHttpResponse response,
                                    WebSocketHandler wsHandler,
                                    Map<String, Object> attributes) {
-        logger.info("🔍 WebSocket Handshake Started...");
+        logger.info("🔍 WebSocket Handshake Started... URI: {}", request.getURI());
 
         String query = request.getURI().getQuery();  // e.g., "token=abc123&foo=bar"
-        logger.debug("Query String: {}", query);
+        logger.info("Query String: {}", query);
 
         if (!StringUtils.hasText(query)) {
             logger.warn("❌ No query parameters found in WebSocket request.");
@@ -67,17 +67,28 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
             return false;
         }
 
-        logger.info("📌 Extracted Token: {}", tokenValue);
+        logger.info("📌 Extracted Token: {}", tokenValue.substring(0, Math.min(10, tokenValue.length())) + "...");
 
         // 3. Validate token using JwtUtil
-        String username = jwtUtil.extractUsername(tokenValue);
-        if (username != null && jwtUtil.validateToken(tokenValue, username)) {
-            logger.info("✅ Token Valid. User: {}", username);
-            attributes.put("username", username);
-            return true; // ✅ Allow WebSocket connection
-        } else {
-            logger.warn("❌ Invalid or expired JWT Token: {}", tokenValue);
-            response.setStatusCode(HttpStatus.BAD_REQUEST);
+        try {
+            String username = jwtUtil.extractUsername(tokenValue);
+            if (username != null && jwtUtil.validateToken(tokenValue, username)) {
+                logger.info("✅ Token Valid. User: {}", username);
+                attributes.put("username", username);
+                
+                // Debug info to check attributes are properly set
+                logger.info("✅ Set username in session attributes: {}", username);
+                logger.info("✅ Session attributes after setting username: {}", attributes);
+                
+                return true; // ✅ Allow WebSocket connection
+            } else {
+                logger.warn("❌ Invalid or expired JWT Token. Username extracted: {}", username);
+                response.setStatusCode(HttpStatus.UNAUTHORIZED);
+                return false;
+            }
+        } catch (Exception e) {
+            logger.error("❌ Exception during token validation: {}", e.getMessage(), e);
+            response.setStatusCode(HttpStatus.UNAUTHORIZED);
             return false;
         }
     }
