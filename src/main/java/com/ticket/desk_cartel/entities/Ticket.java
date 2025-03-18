@@ -13,7 +13,8 @@ import java.util.Date;
 @Entity@Table(name = "ticket")
 public class Ticket {
 
-    @Id    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long ticketId;
 
     @Column
@@ -22,11 +23,12 @@ public class Ticket {
     @Column
     private String description;
 
-    @OneToOne    @JoinColumn(name = "clientId")
+    @ManyToOne
+    @JoinColumn(name = "clientId")
     @JsonBackReference("account-sentTransactions")
     private User ticketOwner;
 
-    @OneToOne
+    @ManyToOne
     @JoinColumn(name = "agentId")
     @JsonBackReference("account-sentTransactions")
     private Agent assignedTicket;
@@ -41,12 +43,15 @@ public class Ticket {
     private LocalDateTime completion_date;
 
     @Column
+    @Enumerated(EnumType.STRING)
     private Status status;
 
     @Column
+    @Enumerated(EnumType.STRING)
     private Priority priority;
 
-    @Column
-    private String category;
+    @ManyToOne
+    @JoinColumn(name ="category_id")
+    private Category category;
 
 }
