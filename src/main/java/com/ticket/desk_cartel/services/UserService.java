@@ -1,6 +1,8 @@
 package com.ticket.desk_cartel.services;
 
+import com.ticket.desk_cartel.dto.UserDTO;
 import com.ticket.desk_cartel.entities.User;
+import com.ticket.desk_cartel.repositories.AgentRepository;
 import com.ticket.desk_cartel.repositories.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,8 +10,12 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import com.ticket.desk_cartel.entities.Agent;
+import com.ticket.desk_cartel.entities.AgentLevel;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Service for managing user-related operations, focusing on user management
@@ -22,14 +28,16 @@ public class UserService implements UserDetailsService {
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
 
     private final UserRepository userRepository;
+    private final AgentRepository agentRepository;
 
     /**
      * Constructor-based dependency injection.
      *
      * @param userRepository Repository for user data access.
      */
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, AgentRepository agentRepository) {
         this.userRepository = userRepository;
+        this.agentRepository = agentRepository;
     }
 
     /**
@@ -106,4 +114,44 @@ public class UserService implements UserDetailsService {
                 .roles(user.getRole())
                 .build();
     }
+
+    public List<UserDTO> getAllUsers() {
+        return userRepository.findAll()
+                .stream()
+                .map(user -> new UserDTO(
+                        user.getId(),
+                        user.getUsername(),
+                        user.getEmail(),
+                        user.getFullName(),
+                        user.getDateOfBirth(),
+                        user.getPhoneNumber(),
+                        user.getAddress(),
+                        user.getProfilePictureUrl(),
+                        user.getRole(),
+                        user.getCreatedAt()
+                ))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Update the role of a user.
+     */
+    public void updateUserRole(Long userId, String role) {
+        Optional<User> userOpt = userRepository.findById(userId);
+        if (userOpt.isEmpty()) {
+            throw new RuntimeException("User not found");
+        }
+
+        User user = userOpt.get();
+        user.setRole(role);
+        userRepository.save(user);
+
+        if ("AGENT".equalsIgnoreCase(role)) {
+            agentRepository.findByUser(user).orElseGet(() -> {
+                Agent newAgent = new Agent(user, AgentLevel.JUNIOR);
+                return agentRepository.save(newAgent);
+            });
+        }
+    }
+
 }
