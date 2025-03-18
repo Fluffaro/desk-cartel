@@ -24,8 +24,12 @@ public class Category {
     @Column
     private String description;
 
+    @Column
+    private int points;
+
     public Category(String name, String description) {
         this.name = name;
         this.description = description;
     }
+
 }
