@@ -1,12 +1,14 @@
 package com.ticket.desk_cartel.entities;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.Date;
+import java.util.List;
 
 @Setter
 @Getter
@@ -52,6 +54,12 @@ public class Ticket {
 
     @ManyToOne
     @JoinColumn(name ="category_id")
+    @JsonManagedReference
     private Category category;
+
+    @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonBackReference
+    private List<Comment> comments;
+
 
 }
