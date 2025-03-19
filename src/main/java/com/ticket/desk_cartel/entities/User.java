@@ -1,10 +1,12 @@
 package com.ticket.desk_cartel.entities;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Date;
+import java.util.List;
 
 /**
  * Entity representing a user.
@@ -48,6 +50,11 @@ public class User {
     // Store a single role directly in this column. Default is "USER".
     @Column(nullable = false)
     private String role = "USER";
+
+
+    @OneToMany(mappedBy = "author", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonBackReference
+    private List<Comment> comments;
 
     private LocalDateTime createdAt = LocalDateTime.now();
     private LocalDateTime updatedAt = LocalDateTime.now();

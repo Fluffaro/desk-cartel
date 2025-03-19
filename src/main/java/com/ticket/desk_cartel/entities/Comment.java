@@ -1,5 +1,6 @@
 package com.ticket.desk_cartel.entities;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -17,12 +18,15 @@ public class Comment {
     private Long id;
 
 
-    private User author_id;
-
+    @ManyToOne
+    @JoinColumn(name = "author_id", nullable = false)
+    @JsonBackReference
+    private User author;
 
     @ManyToOne
     @JoinColumn(name = "ticket_id", nullable = false)
-    private Ticket ticket_id;
+    @JsonBackReference
+    private Ticket ticket;
 
     @Column(nullable = false)
     private String text;
@@ -32,6 +36,7 @@ public class Comment {
 
     @ManyToOne
     @JoinColumn(name = "reply_to_comment_id")
+    @JsonBackReference
     private Comment replyToComment;
 
 

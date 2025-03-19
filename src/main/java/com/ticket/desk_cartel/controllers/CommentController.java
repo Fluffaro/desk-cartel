@@ -23,8 +23,8 @@ public class CommentController {
             @RequestParam Long userId,
             @RequestParam String text,
             @RequestParam(required = false) Long replyToCommentId
-            ) {
-        Comment comment = commentService.addComment(ticketId, userId, text, replyToCommentId);
+            ) throws Exception {
+        Comment comment = commentService.addComment(text,replyToCommentId, ticketId, userId  );
 
         if(comment == null) {
             return ResponseEntity.badRequest().build();
@@ -33,11 +33,18 @@ public class CommentController {
         return ResponseEntity.ok(comment);
     }
 
-    @GetMapping
+    @GetMapping("/{ticketId}")
     public ResponseEntity<List<Comment>> getCommentsByTicket (
-            @RequestParam Long ticketId
-    ){
+            @PathVariable Long ticketId
+    ) throws Exception {
         List<Comment> comments = commentService.getCommentsByTicketId(ticketId);
         return ResponseEntity.ok(comments);
+    }
+
+    @PutMapping("/{commentId}")
+    public ResponseEntity<Comment> editComment (@PathVariable Long commentId, @RequestParam String text) throws Exception {
+        System.out.println("Received commentId: " + commentId + " and text: " + text);
+        Comment comment = commentService.editComment(commentId, text);
+        return ResponseEntity.ok(comment);
     }
 }

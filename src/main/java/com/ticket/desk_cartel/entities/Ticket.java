@@ -1,6 +1,7 @@
 package com.ticket.desk_cartel.entities;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -53,11 +54,12 @@ public class Ticket {
 
     @ManyToOne
     @JoinColumn(name ="category_id")
+    @JsonManagedReference
     private Category category;
 
-    //might cause issue in ticket getting
-    //need to be prevented 
-    @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonBackReference
     private List<Comment> comments;
+
 
 }
