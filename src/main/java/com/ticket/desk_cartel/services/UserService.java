@@ -188,4 +188,20 @@ public class UserService implements UserDetailsService {
         userRepository.save(user);
     }
 
+    public Optional<UserDTO> getUserById(Long id) {
+        return userRepository.findById(id)
+                .map(user -> new UserDTO(
+                        user.getId(),
+                        user.getUsername(),
+                        user.getEmail(),
+                        user.getFullName(),
+                        user.getDateOfBirth(),
+                        user.getPhoneNumber(),
+                        user.getAddress(),
+                        user.getProfilePictureUrl(),
+                        user.getRole(),
+                        user.getCreatedAt()
+                ));
+    }
+
 }

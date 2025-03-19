@@ -37,4 +37,15 @@ public class AdminController {
         userService.updateUserRole(id, role);
         return ResponseEntity.ok("User role updated successfully.");
     }
+
+    /**
+     * Get user details by ID
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<UserDTO> getUserById(@PathVariable Long id) {
+        Optional<UserDTO> user = userService.getUserById(id);
+        return user.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+
 }
