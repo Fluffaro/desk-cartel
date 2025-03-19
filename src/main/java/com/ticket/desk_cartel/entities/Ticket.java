@@ -45,6 +45,9 @@ public class Ticket {
     private LocalDateTime completion_date;
 
     @Column
+    private LocalDateTime expected_completion_date;
+
+    @Column
     @Enumerated(EnumType.STRING)
     private Status status;
 

@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 /**
  * Entity representing a support agent in the system.
  * Each agent has a level (JUNIOR, MID, SENIOR) which determines their capacity.
+ * Capacity is calculated as: baseCapacity + (completedTickets / 10)
  */
 @Getter
 @Setter
@@ -27,12 +28,25 @@ public class Agent {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private AgentLevel level;
-
-    // Capacity is determined by level but stored for quick reference
+    
+    // Keep for database compatibility with existing schema
+    @Column(nullable = false)
     private int capacity;
 
-    // Derived field that can be calculated based on assigned tickets
-    private int currentWorkload;
+    // Base capacity determined by level
+    private int baseCapacity;
+    
+    // Track completed tickets for level progression and bonus capacity
+    private int completedTickets = 0;
+    
+    // Track total performance points earned by the agent
+    private int totalPerformancePoints = 0;
+
+    // Total capacity calculated from base + bonus
+    private int totalCapacity;
+
+    // Current workload based on assigned tickets
+    private int currentWorkload = 0;
 
     private LocalDateTime createdAt = LocalDateTime.now();
     private LocalDateTime updatedAt = LocalDateTime.now();
@@ -50,22 +64,92 @@ public class Agent {
     public Agent(User user, AgentLevel level) {
         this.user = user;
         this.level = level;
-        this.capacity = level.getCapacity();
+        this.baseCapacity = level.getBaseCapacity();
+        this.totalCapacity = this.baseCapacity; // Initially no bonus
+        this.capacity = this.baseCapacity; // Set capacity for DB compatibility
         this.currentWorkload = 0;
+        this.completedTickets = 0;
+        this.totalPerformancePoints = 0;
     }
 
     /**
-     * Updates the agent's level and adjusts capacity accordingly.
-     * 
-     * @param level The new agent level
+     * Updates the agent's level, recalculates capacity and checks for level upgrade.
      */
-    public void updateLevel(AgentLevel level) {
-        this.level = level;
-        this.capacity = level.getCapacity();
+    public void recalculateLevel() {
+        // Get the appropriate level based on completed tickets
+        AgentLevel newLevel = AgentLevel.calculateLevel(this.completedTickets);
+        
+        // Update level if changed
+        if (this.level != newLevel) {
+            this.level = newLevel;
+            this.baseCapacity = newLevel.getBaseCapacity();
+        }
+        
+        // Recalculate total capacity
+        this.totalCapacity = this.level.calculateTotalCapacity(this.completedTickets);
+        // Update capacity field for database compatibility
+        this.capacity = this.totalCapacity;
         this.updatedAt = LocalDateTime.now();
     }
+    
+    /**
+     * Increases the completed tickets count and recalculates level and capacity.
+     */
+    public void incrementCompletedTickets() {
+        this.completedTickets++;
+        recalculateLevel();
+    }
+    
+    /**
+     * Adds performance points earned from a completed ticket and increments
+     * the completed tickets count.
+     * 
+     * @param points the performance points earned
+     */
+    public void addCompletedTicketWithPoints(int points) {
+        this.completedTickets++;
+        this.totalPerformancePoints += points;
+        recalculateLevel();
+        this.updatedAt = LocalDateTime.now();
+    }
+    
+    /**
+     * Increases the current workload by the given amount.
+     * 
+     * @param weight the amount to increase the workload by
+     */
+    public void addWorkload(int weight) {
+        this.currentWorkload += weight;
+        this.updatedAt = LocalDateTime.now();
+    }
+    
+    /**
+     * Decreases the current workload by the given amount.
+     * 
+     * @param weight the amount to decrease the workload by
+     */
+    public void reduceWorkload(int weight) {
+        this.currentWorkload = Math.max(0, this.currentWorkload - weight);
+        this.updatedAt = LocalDateTime.now();
+    }
+    
+    /**
+     * Checks if the agent has enough capacity for the given workload.
+     * 
+     * @param weight the workload to check
+     * @return true if the agent has enough capacity
+     */
+    public boolean hasCapacityFor(int weight) {
+        return (this.currentWorkload + weight) <= this.totalCapacity;
+    }
 
+    /**
+     * Sets the active status of this agent.
+     * 
+     * @param active the new active status
+     */
     public void setActive(boolean active) {
         this.isActive = active;
+        this.updatedAt = LocalDateTime.now();
     }
 } 
