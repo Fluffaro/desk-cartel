@@ -139,4 +139,23 @@ public class TicketService {
         return ticketRepository.save(ticket);
 
     }
+
+    /**
+     * Updates only the priority of a ticket. To be used by admins only.
+     *
+     * @param ticketId The ID of the ticket to update.
+     * @param priority The new priority to set.
+     * @return The updated ticket or null if ticket not found.
+     */
+    public Ticket updateTicketPriority(Long ticketId, Priority priority) {
+        Optional<Ticket> ticketOpt = ticketRepository.findById(ticketId);
+        if (ticketOpt.isEmpty()) {
+            return null;
+        }
+        
+        Ticket ticket = ticketOpt.get();
+        ticket.setPriority(priority);
+        
+        return ticketRepository.save(ticket);
+    }
 }

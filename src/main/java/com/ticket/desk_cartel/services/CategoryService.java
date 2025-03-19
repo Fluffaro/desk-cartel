@@ -38,12 +38,20 @@ public class CategoryService {
         return categoryRepository.findAll();
     }
 
+    /**
+     * Get only active categories for users when creating tickets
+     * @return List of active categories
+     */
+    public List<Category> getActiveCategories() {
+        return categoryRepository.findByIsActiveTrue();
+    }
+
     public Category deactivateCategory(Long id) throws AuthException {
         Optional<Category> existingCategory = categoryRepository.findById(id);
         if(existingCategory.isEmpty()){
             throw new AuthException("Category do not exist");
         }
-        if(existingCategory.get().isActive() == false){
+        if(existingCategory.get().getIsActive() == false){
             throw new AuthException("Category is already deactivated");
         }
 

@@ -26,6 +26,7 @@ public class TicketController {
 
     //get all tickets
     @GetMapping("/admin")
+    @PreAuthorize("hasRole('ADMIN')")  // Only admins can access this endpoint
     public ResponseEntity<List<Ticket>> getAllTickets() {
         List<Ticket> tickets = ticketService.getAllTickets();
         return ResponseEntity.ok(tickets);
@@ -74,12 +75,18 @@ public class TicketController {
 
     @PostMapping()
     public ResponseEntity<Ticket> createTicket(@RequestParam Long userId, @RequestBody TicketDTO ticketDTO) throws Exception {
+        // Validate that category is provided
+        if (ticketDTO.getCategory() == null) {
+            return ResponseEntity.badRequest().body(null);
+        }
+        
+        // Force priority to be NOT_ASSIGNED as only admins can set it later
         return ResponseEntity.ok(ticketService.createTicket(userId,
                 ticketDTO.getTitle(),
                 ticketDTO.getDescription(),
-                ticketDTO.getPriority(),
+                Priority.NOT_ASSIGNED, // Always set to NOT_ASSIGNED on creation
                 ticketDTO.getStatus(),
-                ticketDTO.getCategory() ));
+                ticketDTO.getCategory()));
     }
 
     /**
@@ -109,6 +116,21 @@ public class TicketController {
 
         return ResponseEntity.ok("Ticket updated successfully");
 
+    }
+
+    @PutMapping("/{ticketId}/priority")
+    @PreAuthorize("hasRole('ADMIN')")  // Only admins can update priority
+    public ResponseEntity<String> updateTicketPriority(
+            @PathVariable Long ticketId,
+            @RequestParam Priority priority
+    ) {
+        Ticket updatedTicket = ticketService.updateTicketPriority(ticketId, priority);
+
+        if(updatedTicket == null){
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Ticket Not Found");
+        }
+
+        return ResponseEntity.ok("Ticket priority updated successfully");
     }
 
 }
