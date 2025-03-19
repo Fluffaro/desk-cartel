@@ -61,19 +61,6 @@
             boolean isExcluded = excludedPaths.stream()
                     .anyMatch(path -> requestURI.startsWith(path));
             logger.debug("Is Excluded? {}", isExcluded);
-
-            String username = jwtUtil.extractUsername(token);
-            logger.info("👤 Extracted Username: {}", username);
-            String role = jwtUtil.extractRole(token);
-            logger.info("👤 Extracted Role: {}", role);
-            // Only proceed if the user is not already authenticated.
-            if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                UserDetails userDetails = userService.loadUserByUsername(username);
-                if (jwtUtil.validateToken(token, userDetails.getUsername())) {
-                    logger.info("✅ Token is valid for user: {}", username);
-
-                }
-            }
             
             if (isExcluded) {
                 logger.debug("Skipping JWT filter for WebSocket path: {}", requestURI);
