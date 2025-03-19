@@ -54,4 +54,7 @@ public class Ticket {
     @JoinColumn(name ="category_id")
     private Category category;
 
+    @Column
+    private int hoursRemaining;
+
 }

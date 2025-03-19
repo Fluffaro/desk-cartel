@@ -9,10 +9,9 @@ import jakarta.security.auth.message.AuthException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class TicketService {
@@ -158,4 +157,81 @@ public class TicketService {
         
         return ticketRepository.save(ticket);
     }
+
+    /*
+    public Ticket updateTicketCompletionStatus(){
+        Optional<Ticket> ticketOpt = ticketRepository.findById()
+    }
+
+     */
+
+    public List<Ticket> getAllOnGoingTickets(){
+
+        List<Ticket> ticketList = ticketRepository.findAll();
+
+        List<Ticket> onGoingTicket = new ArrayList<>();
+
+
+        for(int i=0; i< ticketList.size(); i++){
+            if(LocalDateTime.now().isBefore(ticketList.get(i).getCompletion_date())){
+                onGoingTicket.add(ticketList.get(i));
+            }
+
+        }
+        return onGoingTicket;
+    }
+
+    /*
+    public List<Ticket> getHoursDeadlineRemaining(){
+        List<Ticket> onGoingTickets = getAllOnGoingTickets();
+        List<Ticket> ticketHoursRemaining = new ArrayList<>();
+
+        for(int i=0; i < onGoingTickets.size(); i++){
+            LocalDateTime completionDate = onGoingTickets.get(i).getCompletion_date();
+
+
+            long hoursBetween = Duration.between(LocalDateTime.now(), completionDate).toHours();
+
+
+            ticketHoursRemaining.add((int) hoursBetween);
+
+        }
+
+        Collections.sort(hoursRemaining);
+
+
+
+        return hoursRemaining;
+
+
+    }
+
+     */
+
+    public List<Ticket> getHoursDeadlineRemaining() {
+        List<Ticket> onGoingTickets = getAllOnGoingTickets();
+        List<Ticket> ticketHoursRemaining = new ArrayList<>();
+
+
+        for (Ticket ticket : onGoingTickets) {
+            LocalDateTime completionDate = ticket.getCompletion_date();
+
+
+            long hoursRemaining = Duration.between(LocalDateTime.now(), completionDate).toHours();
+
+
+            ticket.setHoursRemaining((int) hoursRemaining);
+
+
+            ticketHoursRemaining.add(ticket);
+        }
+
+
+        ticketHoursRemaining.sort(Comparator.comparingInt(Ticket::getHoursRemaining));
+
+        return ticketHoursRemaining;
+    }
+
+
+
 }
