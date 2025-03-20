@@ -181,7 +181,7 @@ public class AgentService {
         }
         
         // Verify ticket is in ASSIGNED status
-        if (ticket.getStatus() != Status.ASSIGNED && ticket.getStatus() != Status.NOT_YET_STARTED) {
+        if (ticket.getStatus() != Status.ASSIGNED) {
             logger.warn("Cannot start ticket {} with status {}", ticketId, ticket.getStatus());
             return null;
         }

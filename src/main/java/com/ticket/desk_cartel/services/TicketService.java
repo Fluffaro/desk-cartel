@@ -211,8 +211,7 @@ public class TicketService {
         } else if("AGENT".equals(role)){
             if(status != null) {
                 // Check if we're setting to ONGOING from ASSIGNED
-                if (status == Status.ONGOING && 
-                    (ticket.getStatus() == Status.ASSIGNED || ticket.getStatus() == Status.NOT_YET_STARTED)) {
+                if (status == Status.ONGOING && ticket.getStatus() == Status.ASSIGNED) {
                     // Record start time when agent begins work
                     ticket.setDate_started(LocalDateTime.now());
                 }
@@ -257,21 +256,6 @@ public class TicketService {
         
         // Use the agent service to start the ticket
         return agentService.startTicket(ticketId, agentId);
-    }
-    
-    /**
-     * DEPRECATED: Agents can no longer complete tickets directly. Only clients can complete tickets.
-     * This method is kept for backward compatibility but now always returns null.
-     * 
-     * @param ticketId ID of the ticket
-     * @param agentId ID of the agent completing the ticket
-     * @param token JWT token for authorization
-     * @return Always returns null
-     */
-    @Transactional
-    public Ticket completeTicket(Long ticketId, Long agentId, String token) {
-        logger.warn("Agent {} attempted to complete ticket {}, but only clients can complete tickets now", agentId, ticketId);
-        return null;
     }
     
     /**

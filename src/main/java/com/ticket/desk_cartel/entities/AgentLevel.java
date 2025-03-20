@@ -3,7 +3,7 @@ package com.ticket.desk_cartel.entities;
 /**
  * Enum representing the different levels of agents and their capacities.
  * Each level has a base capacity and a completion threshold to advance to the next level.
- * Actual capacity is calculated as: baseCapacity + (completedTickets / 10)
+ * Actual capacity is calculated as: baseCapacity + (completedTickets / 5)
  */
 public enum AgentLevel {
     JUNIOR(10, 0, 49),      // Base capacity: 10, Level range: 0-49 completed tickets
@@ -22,7 +22,7 @@ public enum AgentLevel {
 
     /**
      * Gets the base capacity for this agent level.
-     * The actual capacity will be calculated as baseCapacity + (completedTickets / 10)
+     * The actual capacity will be calculated as baseCapacity + (completedTickets / 5)
      * 
      * @return the base capacity value
      */
@@ -66,7 +66,7 @@ public enum AgentLevel {
     
     /**
      * Calculate the total capacity for an agent based on their level and completed tickets.
-     * Formula: baseCapacity + (completedTickets / 10)
+     * Formula: baseCapacity + (completedTickets / 5)
      * 
      * @param completedTickets the number of completed tickets
      * @return the total capacity
