@@ -51,8 +51,8 @@ public class Ticket {
     @Enumerated(EnumType.STRING)
     private Status status;
 
-    @Column
-    @Enumerated(EnumType.STRING)
+    @ManyToOne
+    @JoinColumn(name = "priority_id")
     private Priority priority;
 
     @ManyToOne
