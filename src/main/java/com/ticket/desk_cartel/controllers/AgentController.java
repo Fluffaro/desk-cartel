@@ -3,6 +3,7 @@ package com.ticket.desk_cartel.controllers;
 import com.ticket.desk_cartel.entities.Agent;
 import com.ticket.desk_cartel.entities.AgentLevel;
 import com.ticket.desk_cartel.entities.Ticket;
+import com.ticket.desk_cartel.repositories.AgentRepository;
 import com.ticket.desk_cartel.services.AgentService;
 import com.ticket.desk_cartel.services.TicketService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +26,8 @@ public class AgentController {
 
     private final AgentService agentService;
     private final TicketService ticketService;
+    @Autowired
+    private AgentRepository agentRepository;
 
     @Autowired
     public AgentController(AgentService agentService, TicketService ticketService) {
@@ -222,5 +225,14 @@ public class AgentController {
         }
         
         return ResponseEntity.ok(updatedTicket);
+    }
+
+    @PostMapping("/notifCount/{id}")
+    public ResponseEntity<?> getNotifCount(@PathVariable Long id){
+        Optional<Agent> agentOpt = agentRepository.findById(id);
+
+        Agent agentNotif = agentOpt.get();
+
+        return ResponseEntity.ok(agentNotif.getNotifCount());
     }
 } 

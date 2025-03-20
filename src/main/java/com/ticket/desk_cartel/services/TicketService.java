@@ -128,10 +128,14 @@ public class TicketService {
             notification.setDescription(description);
             notification.setTicket(ticket);
             notification.setAssignedTicket(ticket.getAssignedTicket());
-            Optional<Long> agentId = agentService.getAgentById(ticket.getAssignedTicket().getId());
+            Optional<Agent> agentId = agentService.getAgentById(ticket.getAssignedTicket().getId());
 
-            Long id = agentId.get();
-            agentRepository.findById(agentId);
+            Long id = agentId.get().getId();
+            Optional<Agent> agentOpt = agentRepository.findById(id);
+            Agent agentNotif = agentOpt.get();
+            int notifCount = agentNotif.getNotifCount();
+            agentNotif.setNotifCount(notifCount++);
+            agentRepository.save(agentNotif);
 
             notificationRepository.save(notification);
             return ticket;
