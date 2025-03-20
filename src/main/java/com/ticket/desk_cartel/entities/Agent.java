@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 /**
  * Entity representing a support agent in the system.
  * Each agent has a level (JUNIOR, MID, SENIOR) which determines their capacity.
- * Capacity is calculated as: baseCapacity + (completedTickets / 10)
+ * Capacity is calculated as: baseCapacity + (completedTickets / 5)
  */
 @Getter
 @Setter
@@ -29,10 +29,6 @@ public class Agent {
     @Column(nullable = false)
     private AgentLevel level;
     
-    // Keep for database compatibility with existing schema
-    @Column(nullable = false)
-    private int capacity;
-
     // Base capacity determined by level
     private int baseCapacity;
     
@@ -66,7 +62,6 @@ public class Agent {
         this.level = level;
         this.baseCapacity = level.getBaseCapacity();
         this.totalCapacity = this.baseCapacity; // Initially no bonus
-        this.capacity = this.baseCapacity; // Set capacity for DB compatibility
         this.currentWorkload = 0;
         this.completedTickets = 0;
         this.totalPerformancePoints = 0;
@@ -87,8 +82,6 @@ public class Agent {
         
         // Recalculate total capacity
         this.totalCapacity = this.level.calculateTotalCapacity(this.completedTickets);
-        // Update capacity field for database compatibility
-        this.capacity = this.totalCapacity;
         this.updatedAt = LocalDateTime.now();
     }
     
