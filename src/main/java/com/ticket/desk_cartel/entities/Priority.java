@@ -1,22 +1,62 @@
 package com.ticket.desk_cartel.entities;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+
 /**
- * Enum representing the priority levels of tickets.
+ * Entity representing the priority levels of tickets.
  * Each priority has an associated weight (workload impact) and time limit in hours.
+ * Priority levels can be configured by administrators.
  */
-public enum Priority {
-    NOT_ASSIGNED(0, 0),       // Default state before classification
-    LOW(10, 4),               // Weight: 10, Time limit: 4 hours
-    MEDIUM(20, 8),            // Weight: 20, Time limit: 8 hours
-    HIGH(30, 24),             // Weight: 30, Time limit: 24 hours
-    CRITICAL(40, 48);         // Weight: 40, Time limit: 48 hours
+@Entity
+@Table(name = "priority_levels")
+public class Priority {
 
-    private final int weight;
-    private final int timeLimit;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    Priority(int weight, int timeLimit) {
+    @NotBlank(message = "Priority name is required")
+    @Column(unique = true, nullable = false)
+    private String name;
+    
+    @Min(value = 0, message = "Weight must be a positive number")
+    private int weight;
+    
+    @Min(value = 0, message = "Time limit must be a positive number")
+    @Column(name = "time_limit_hours")
+    private int timeLimit;
+    
+    // Default constructor required by JPA
+    public Priority() {
+    }
+    
+    public Priority(String name, int weight, int timeLimit) {
+        this.name = name;
         this.weight = weight;
         this.timeLimit = timeLimit;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 
     /**
@@ -30,11 +70,29 @@ public enum Priority {
     }
 
     /**
+     * Sets the weight for this priority level.
+     * 
+     * @param weight the priority weight to set
+     */
+    public void setWeight(int weight) {
+        this.weight = weight;
+    }
+
+    /**
      * Gets the time limit in hours for tickets of this priority.
      * 
      * @return the time limit in hours
      */
     public int getTimeLimit() {
         return timeLimit;
+    }
+
+    /**
+     * Sets the time limit in hours for tickets of this priority.
+     * 
+     * @param timeLimit the time limit in hours
+     */
+    public void setTimeLimit(int timeLimit) {
+        this.timeLimit = timeLimit;
     }
 }

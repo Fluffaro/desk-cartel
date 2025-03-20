@@ -3,178 +3,156 @@ package com.ticket.desk_cartel.services;
 import com.ticket.desk_cartel.entities.Priority;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import okhttp3.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 @Service
 public class GeminiAIService {
+    
     private static final Logger logger = LoggerFactory.getLogger(GeminiAIService.class);
     private final OkHttpClient client = new OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
+            .callTimeout(java.time.Duration.ofSeconds(30))
+            .readTimeout(java.time.Duration.ofSeconds(30))
             .build();
+            
     private final ObjectMapper objectMapper = new ObjectMapper();
     
     @Value("${gemini.api.key}")
     private String apiKey;
     
-    // Google Gemini API endpoint
+    @Autowired
+    private PriorityService priorityService;
+    
     private final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
     
     /**
-     * Suggests a priority for a ticket using Google Gemini AI with fallback to keyword matching
+     * Suggests a priority level for a ticket based on title and description
+     * using Google's Gemini API or fallback keyword matching.
      * 
      * @param title Ticket title
      * @param description Ticket description
-     * @param category Ticket category name
-     * @return Suggested Priority
+     * @param category Category of the ticket
+     * @return Suggested priority level
      */
     public Priority suggestPriority(String title, String description, String category) {
-        logger.info("Suggesting priority for ticket - Title: \"{}\", Category: \"{}\", Description length: {} chars", 
-                title, category, description != null ? description.length() : 0);
-                
         try {
-            logger.info("Attempting to use Google Gemini AI for priority suggestion");
-            // Try Gemini AI first
-            Priority priority = callGeminiForPriority(title, description, category);
-            logger.info("Successfully determined priority via Google Gemini AI: {}", priority);
-            return priority;
+            logger.info("Requesting priority suggestion from Gemini AI for ticket: {}", title);
+            
+            // Try to get priority from Gemini API
+            return callGeminiForPriority(title, description, category);
+            
         } catch (Exception e) {
-            logger.warn("Google Gemini API failed: {} - {}", e.getClass().getName(), e.getMessage());
-            // Fallback to simple keyword matching
-            Priority priority = keywordBasedPriority(title, description, category);
-            logger.info("Determined priority via keyword matching fallback: {}", priority);
-            return priority;
+            logger.error("Failed to get priority from Gemini API, falling back to keyword analysis", e);
+            
+            // Fallback to keyword-based priority detection
+            return keywordBasedPriority(title, description, category);
         }
     }
     
-    /**
-     * Attempts to determine priority using the Google Gemini API
-     */
     private Priority callGeminiForPriority(String title, String description, String category) throws IOException {
-        // Skip API call if no token is configured
-        if (apiKey == null || apiKey.isEmpty()) {
-            logger.info("No Google Gemini API key configured, using fallback");
-            throw new IOException("No API key configured");
-        }
-        
-        // Improved input with better structure and priority level definitions
-        String prompt = String.format(
-            "I need to classify the priority of this support ticket:\n\n" +
-            "Category: %s\n" +
-            "Title: %s\n" +
-            "Description: %s\n\n" +
-            "NOTE: The priority should be based primarily on the issue's impact, not just the category.\n\n" +
-            "Priority levels are defined as follows:\n" +
-            "- CRITICAL: Severe system-wide outages, data loss, security breaches, or production-blocking issues affecting many users. Examples: server down, database corruption, ransomware attack, critical service unavailable for multiple teams, widespread virus infection, data breach affecting multiple systems.\n" +
-            "- HIGH: Significant functionality broken with no workaround, affecting core business processes or important user data. Examples: application crashes, inability to submit forms, broken checkout process, network outage in one department, user data theft or loss, single user virus/malware that compromised data, inability to access critical files/systems, security issues affecting a single user's data.\n" +
-            "- MEDIUM: Important issues with available workarounds, or issues affecting non-critical functions. Examples: slow system performance, minor calculation errors, formatting problems in reports, hardware issues where basic functionality remains (e.g., printer works but double-sided printing fails), suspicious activity without confirmed data loss, non-critical data corruption, virus/malware that has been contained without major data loss.\n" +
-            "- LOW: Minor issues, cosmetic problems, \"how-to\" questions, feature requests, or basic usage assistance. Examples: UI alignment issues, spelling errors, password resets, basic usage questions like \"how do I save a file\", training requests, \"I don't know how to use this feature\", advice on avoiding viruses, questions about security best practices without an actual incident.\n\n" +
-            "Based on the information provided, what is the priority level for this ticket? Reply with only one word: LOW, MEDIUM, HIGH, or CRITICAL.",
-            category, title, description
-        );
-        
-        // Create Gemini API request body
-        Map<String, Object> requestMap = new HashMap<>();
-        
-        // Build the contents array with parts as shown in the curl example
-        Map<String, Object> content = new HashMap<>();
-        Map<String, Object> part = new HashMap<>();
-        part.put("text", prompt);
-        
-        List<Object> parts = new ArrayList<>();
-        parts.add(part);
-        content.put("parts", parts);
-        
-        List<Object> contents = new ArrayList<>();
-        contents.add(content);
-        requestMap.put("contents", contents);
-        
-        String requestBody = objectMapper.writeValueAsString(requestMap);
-        logger.info("Sending request to Google Gemini API with body: {}", requestBody);
-        
-        // Build the HTTP request with API key as query parameter
-        HttpUrl url = HttpUrl.parse(GEMINI_API_URL)
-            .newBuilder()
-            .addQueryParameter("key", apiKey)
-            .build();
-            
-        RequestBody body = RequestBody.create(
-            requestBody,
-            MediaType.parse("application/json")
-        );
-        
-        Request request = new Request.Builder()
-            .url(url)
-            .post(body)
-            .header("Content-Type", "application/json")
-            .build();
-        
         logger.info("Calling Google Gemini API");
-        
-        // Execute the request
-        try (Response response = client.newCall(request).execute()) {
-            int statusCode = response.code();
-            String responseBody = response.body().string();
+        try {
+            // Construct the request body
+            ObjectNode requestBody = objectMapper.createObjectNode();
+            ObjectNode contents = objectMapper.createObjectNode();
+            ObjectNode part = objectMapper.createObjectNode();
             
-            logger.info("Google Gemini API response status: {}", statusCode);
-            logger.info("Google Gemini API response body: {}", responseBody);
-            
-            if (!response.isSuccessful()) {
-                logger.error("Google Gemini API error - Status: {}, Body: {}", statusCode, responseBody);
-                throw new IOException("Unexpected code " + response + ", body: " + responseBody);
+            // Create the prompt
+            StringBuilder prompt = new StringBuilder();
+            prompt.append("I need to classify the priority of this support ticket:\n\n");
+            if (category != null) {
+                prompt.append("Category: ").append(category).append("\n");
             }
+            prompt.append("Title: ").append(title).append("\n");
+            prompt.append("Description: ").append(description).append("\n\n");
+            prompt.append("NOTE: The priority should be based primarily on the issue's impact, not just the category.\n\n");
+            prompt.append("Priority levels are defined as follows:\n");
+            prompt.append("- CRITICAL: Severe system-wide outages, data loss, security breaches, or production-blocking issues affecting many users. Examples: server down, database corruption, ransomware attack, critical service unavailable for multiple teams, widespread virus infection, data breach affecting multiple systems.\n");
+            prompt.append("- HIGH: Significant functionality broken with no workaround, affecting core business processes or important user data. Examples: application crashes, inability to submit forms, broken checkout process, network outage in one department, user data theft or loss, single user virus/malware that compromised data, inability to access critical files/systems, security issues affecting a single user's data.\n");
+            prompt.append("- MEDIUM: Important issues with available workarounds, or issues affecting non-critical functions. Examples: slow system performance, minor calculation errors, formatting problems in reports, hardware issues where basic functionality remains (e.g., printer works but double-sided printing fails), suspicious activity without confirmed data loss, non-critical data corruption, virus/malware that has been contained without major data loss.\n");
+            prompt.append("- LOW: Minor issues, cosmetic problems, \"how-to\" questions, feature requests, or basic usage assistance. Examples: UI alignment issues, spelling errors, password resets, basic usage questions like \"how do I save a file\", training requests, \"I don't know how to use this feature\", advice on avoiding viruses, questions about security best practices without an actual incident.\n\n");
+            prompt.append("Based on the information provided, what is the priority level for this ticket? Reply with only one word: LOW, MEDIUM, HIGH, or CRITICAL.");
             
-            // Parse the result to find the priority
-            JsonNode rootNode = objectMapper.readTree(responseBody);
+            part.put("text", prompt.toString());
+            contents.set("parts", objectMapper.createArrayNode().add(part));
+            requestBody.set("contents", objectMapper.createArrayNode().add(contents));
+            requestBody.put("generationConfig", objectMapper.createObjectNode().put("temperature", 0));
             
-            try {
-                // Extract the response text
-                JsonNode candidates = rootNode.path("candidates");
-                if (candidates.isArray() && candidates.size() > 0) {
-                    JsonNode contentNode = candidates.get(0).path("content");
-                    JsonNode responseParts = contentNode.path("parts");
-                    if (responseParts.isArray() && responseParts.size() > 0) {
-                        String text = responseParts.get(0).path("text").asText().trim();
-                        logger.info("Extracted priority from Gemini API: {}", text);
-                        
-                        // Look for priority in the response text
-                        for (Priority p : Priority.values()) {
-                            if (text.toUpperCase().contains(p.name())) {
-                                logger.info("Found priority {} in response", p.name());
-                                return p;
-                            }
-                        }
-                        
-                        // Try direct mapping if exact priority name found
-                        try {
-                            return Priority.valueOf(text.toUpperCase());
-                        } catch (IllegalArgumentException e) {
-                            logger.warn("Could not parse priority from response: {}", text);
-                        }
-                    }
+            logger.debug("Sending prompt to Gemini API: {}", prompt.toString());
+            
+            // Create API request
+            Request request = new Request.Builder()
+                    .url(GEMINI_API_URL + "?key=" + apiKey)
+                    .post(RequestBody.create(objectMapper.writeValueAsString(requestBody), 
+                          MediaType.parse("application/json")))
+                    .build();
+                          
+            // Execute request
+            try (Response response = client.newCall(request).execute()) {
+                if (!response.isSuccessful()) {
+                    logger.error("API request failed with status {}: {}", response.code(), response.body().string());
+                    return priorityService.getPriorityByName("MEDIUM");
                 }
                 
-                logger.warn("No clear priority found in response, defaulting to MEDIUM");
-                return Priority.MEDIUM;
+                String responseBody = response.body().string();
+                logger.debug("Received response from Gemini API: {}", responseBody);
                 
+                // Parse the response
+                JsonNode rootNode = objectMapper.readTree(responseBody);
+                
+                try {
+                    // Extract the response text
+                    JsonNode candidates = rootNode.path("candidates");
+                    if (candidates.isArray() && candidates.size() > 0) {
+                        JsonNode contentNode = candidates.get(0).path("content");
+                        JsonNode responseParts = contentNode.path("parts");
+                        if (responseParts.isArray() && responseParts.size() > 0) {
+                            String text = responseParts.get(0).path("text").asText().trim();
+                            logger.info("Extracted priority from Gemini API: {}", text);
+                            
+                            // Get all priorities from database
+                            List<Priority> priorities = priorityService.getAllPriorities();
+                            
+                            // Look for priority in the response text
+                            for (Priority p : priorities) {
+                                if (text.toUpperCase().contains(p.getName().toUpperCase())) {
+                                    logger.info("Found priority {} in response", p.getName());
+                                    return p;
+                                }
+                            }
+                            
+                            // Try direct mapping if exact priority name found
+                            try {
+                                String priorityName = text.toUpperCase();
+                                return priorityService.getPriorityByName(priorityName);
+                            } catch (Exception e) {
+                                logger.warn("Could not find priority from response: {}", text);
+                            }
+                        }
+                    }
+                    
+                    logger.warn("No clear priority found in response, defaulting to MEDIUM");
+                    return priorityService.getPriorityByName("MEDIUM");
+                    
+                } catch (Exception e) {
+                    logger.error("Error parsing API response: {}", e.getMessage());
+                    logger.error("Response was: {}", responseBody);
+                    throw new IOException("Error parsing API response", e);
+                }
             } catch (Exception e) {
-                logger.error("Error parsing API response: {}", e.getMessage());
-                logger.error("Response was: {}", responseBody);
-                throw new IOException("Error parsing API response", e);
+                logger.error("Exception calling Google Gemini API: {}", e.getMessage(), e);
+                throw e;
             }
         } catch (Exception e) {
-            logger.error("Exception calling Google Gemini API: {}", e.getMessage(), e);
+            logger.error("Exception in callGeminiForPriority: {}", e.getMessage(), e);
             throw e;
         }
     }
@@ -205,14 +183,14 @@ public class GeminiAIService {
         
         if (hasSecurityTerm && hasDataLossTerm) {
             logger.info("Detected HIGH priority based on data theft or security compromise keywords");
-            return Priority.HIGH;
+            return priorityService.getPriorityByName("HIGH");
         }
         
         // Even just having a virus without data loss is at least HIGH
         if (text.contains("virus") || text.contains("malware") || text.contains("hack") || 
             text.contains("breach") || text.contains("compromise") || text.contains("attack")) {
             logger.info("Detected HIGH priority based on security issue");
-            return Priority.HIGH;
+            return priorityService.getPriorityByName("HIGH");
         }
         
         // Database failures should be HIGH or CRITICAL
@@ -228,11 +206,11 @@ public class GeminiAIService {
                     text.contains("company") || text.contains("organization") ||
                     text.contains("system")) {
                     logger.info("Detected CRITICAL priority for database failure affecting multiple users");
-                    return Priority.CRITICAL;
+                    return priorityService.getPriorityByName("CRITICAL");
                 }
                 
                 logger.info("Detected HIGH priority for database failure");
-                return Priority.HIGH;
+                return priorityService.getPriorityByName("HIGH");
             }
         }
         
@@ -243,7 +221,7 @@ public class GeminiAIService {
             text.contains("guide me") || text.contains("instructions") ||
             text.contains("password reset") || text.contains("forgot password")) {
             logger.info("Detected LOW priority based on 'how-to' or basic usage keywords");
-            return Priority.LOW;
+            return priorityService.getPriorityByName("LOW");
         }
         
         // Critical keywords
@@ -257,7 +235,7 @@ public class GeminiAIService {
             (text.contains("virus") && text.contains("spreading")) ||
             (text.contains("malware") && text.contains("multiple"))) {
             logger.info("Detected CRITICAL priority based on keywords");
-            return Priority.CRITICAL;
+            return priorityService.getPriorityByName("CRITICAL");
         }
         
         // High priority keywords
@@ -270,7 +248,7 @@ public class GeminiAIService {
             text.contains("virus") || text.contains("malware") ||
             text.contains("hacked") || text.contains("compromised")) {
             logger.info("Detected HIGH priority based on keywords");
-            return Priority.HIGH;
+            return priorityService.getPriorityByName("HIGH");
         }
         
         // Low priority keywords
@@ -281,7 +259,7 @@ public class GeminiAIService {
             text.contains("feature request") || text.contains("would be nice") ||
             text.contains("visual issue") || text.contains("formatting")) {
             logger.info("Detected LOW priority based on keywords");
-            return Priority.LOW;
+            return priorityService.getPriorityByName("LOW");
         }
         
         // Hardware-specific logic - most basic hardware issues are MEDIUM unless specified otherwise
@@ -291,14 +269,14 @@ public class GeminiAIService {
                 text.contains("blue screen") || text.contains("not booting") ||
                 text.contains("hardware failure")) {
                 logger.info("Detected HIGH priority for critical hardware failure");
-                return Priority.HIGH;
+                return priorityService.getPriorityByName("HIGH");
             } else if (text.contains("how to") || text.contains("help with") || 
                        text.contains("don't know") || text.contains("instructions")) {
                 logger.info("Detected LOW priority for hardware usage question");
-                return Priority.LOW;
+                return priorityService.getPriorityByName("LOW");
             } else {
                 logger.info("Detected MEDIUM priority for general hardware issue");
-                return Priority.MEDIUM;
+                return priorityService.getPriorityByName("MEDIUM");
             }
         }
         
@@ -308,12 +286,12 @@ public class GeminiAIService {
             if (lowerCategory.contains("security") || lowerCategory.contains("critical") ||
                 lowerCategory.contains("production")) {
                 logger.info("Bumping priority to HIGH based on critical category: {}", category);
-                return Priority.HIGH;
+                return priorityService.getPriorityByName("HIGH");
             }
         }
         
         // Default to MEDIUM
         logger.info("No specific keyword patterns detected, defaulting to MEDIUM priority");
-        return Priority.MEDIUM;
+        return priorityService.getPriorityByName("MEDIUM");
     }
 } 
