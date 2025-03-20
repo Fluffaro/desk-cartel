@@ -75,10 +75,16 @@ public class AgentService {
      * @return the best agent or empty if no suitable agent found
      */
     public Optional<Agent> findBestAgentForTicket(Priority priority) {
+        if (priority == null) {
+            logger.warn("Cannot find agent for null priority");
+            return Optional.empty();
+        }
+        
         // Get weight of ticket
         int ticketWeight = priority.getWeight();
         
-        logger.info("Finding best agent for ticket with priority {} (weight: {})", priority, ticketWeight);
+        logger.info("Finding best agent for ticket with priority {} (weight: {})", 
+                priority.getName(), ticketWeight);
         
         // Find all active agents with enough capacity for this ticket
         List<Agent> availableAgents = agentRepository.findAgentsWithEnoughCapacityFor(ticketWeight);

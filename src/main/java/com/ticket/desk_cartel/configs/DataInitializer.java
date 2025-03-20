@@ -2,6 +2,7 @@ package com.ticket.desk_cartel.configs;
 
 import com.ticket.desk_cartel.entities.User;
 import com.ticket.desk_cartel.repositories.UserRepository;
+import com.ticket.desk_cartel.services.PriorityService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -13,7 +14,7 @@ import java.util.UUID;
 
 /**
  * Component responsible for initializing necessary data when the application starts.
- * This includes creating system users like PUBLIC_CHAT.
+ * This includes creating system users like PUBLIC_CHAT and initializing priority levels.
  */
 @Component
 public class DataInitializer implements CommandLineRunner {
@@ -22,15 +23,20 @@ public class DataInitializer implements CommandLineRunner {
     
     private final UserRepository userRepository;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final PriorityService priorityService;
     
-    public DataInitializer(UserRepository userRepository, BCryptPasswordEncoder passwordEncoder) {
+    public DataInitializer(UserRepository userRepository, 
+                          BCryptPasswordEncoder passwordEncoder,
+                          PriorityService priorityService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.priorityService = priorityService;
     }
     
     @Override
     public void run(String... args) {
         createPublicChatUser();
+        initializePriorityLevels();
     }
     
     /**
@@ -54,6 +60,19 @@ public class DataInitializer implements CommandLineRunner {
             logger.info("PUBLIC_CHAT system user created successfully");
         } else {
             logger.info("PUBLIC_CHAT system user already exists");
+        }
+    }
+    
+    /**
+     * Initializes default priority levels if they don't exist in the database.
+     */
+    private void initializePriorityLevels() {
+        try {
+            logger.info("Initializing default priority levels");
+            priorityService.initializeDefaultPriorities();
+            logger.info("Priority levels initialized successfully");
+        } catch (Exception e) {
+            logger.error("Failed to initialize priority levels", e);
         }
     }
 } 

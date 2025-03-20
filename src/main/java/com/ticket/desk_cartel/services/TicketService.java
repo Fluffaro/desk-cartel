@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -32,6 +33,9 @@ public class TicketService {
     
     @Autowired
     private AgentService agentService;
+    
+    @Autowired
+    private PriorityService priorityService;
 
     public TicketService(TicketRepository ticketRepository, UserRepository userRepository, 
                         JwtUtil jwtUtil, CategoryRepository categoryRepository) {
@@ -42,22 +46,25 @@ public class TicketService {
     }
 
     /**
-     * Creates a new ticket and automatically assigns it to an available agent.
+     * Creates a new ticket with the given details.
+     * If priority is not specified, it will be determined by AI.
+     * The ticket will be auto-assigned to an agent if possible.
      * 
      * @param userId ID of the user creating the ticket
-     * @param title Title of the ticket
-     * @param description Description of the ticket
-     * @param priority Priority of the ticket (can be null/NOT_ASSIGNED for auto-classification)
-     * @param status Status of the ticket
-     * @param category Category of the ticket
-     * @return The created ticket
-     * @throws Exception if the user is not found
+     * @param title Ticket title
+     * @param description Ticket description
+     * @param priority Priority level (optional, will be determined by AI if null)
+     * @param status Initial status (optional)
+     * @param category Ticket category
+     * @return The created and potentially assigned ticket
+     * @throws Exception if user not found or other error occurs
      */
     @Transactional
     public Ticket createTicket(Long userId, String title, String description, 
                              Priority priority, Status status, Category category) throws Exception {
+        
         Optional<User> userOpt = userRepository.findById(userId);
-
+        
         if (userOpt.isEmpty()) {
             throw new Exception("User not found");
         }
@@ -69,7 +76,17 @@ public class TicketService {
         ticket.setTicketOwner(user);
         ticket.setPoints(0);
         ticket.setTitle(title);
-        ticket.setPriority(priority != null ? priority : Priority.NOT_ASSIGNED);
+        
+        // Get default NOT_ASSIGNED priority if null
+        Priority notAssignedPriority = null;
+        try {
+            notAssignedPriority = priorityService.getPriorityByName("NOT_ASSIGNED");
+        } catch (Exception e) {
+            logger.warn("NOT_ASSIGNED priority not found, using first available priority");
+            notAssignedPriority = priorityService.getAllPriorities().get(0);
+        }
+        
+        ticket.setPriority(priority != null ? priority : notAssignedPriority);
         ticket.setStatus(Status.ASSIGNED); // Default to ASSIGNED initially
         ticket.setDescription(description);
         ticket.setCategory(category);
@@ -77,12 +94,13 @@ public class TicketService {
         ticket.setCompletion_date(null);
 
         // If priority is NOT_ASSIGNED or null, use Gemini AI to suggest priority
-        if (priority == null || priority == Priority.NOT_ASSIGNED) {
+        if (priority == null || 
+            (notAssignedPriority != null && priority.getName().equals(notAssignedPriority.getName()))) {
             Priority suggestedPriority = geminiAIService.suggestPriority(
                 title, description, category.getName()
             );
             ticket.setPriority(suggestedPriority);
-            logger.info("Auto-classified ticket priority: {}", suggestedPriority);
+            logger.info("Auto-classified ticket priority: {}", suggestedPriority.getName());
         }
 
         // Save the ticket first
@@ -161,14 +179,14 @@ public class TicketService {
             return ticketRepository.findByCategoryAndPriority(category, priority);
         } else if(category != null && status != null) {
             return ticketRepository.findByCategoryAndStatus(category, status);
-        } else if(status != null && priority != null) {
+        } else if(priority != null && status != null) {
             return ticketRepository.findByPriorityAndStatus(priority, status);
-        } else if(status != null) {
-            return ticketRepository.findByStatus(status);
-        } else if(priority != null) {
-            return ticketRepository.findByPriority(priority);
         } else if(category != null) {
             return ticketRepository.findByCategory(category);
+        } else if(priority != null) {
+            return ticketRepository.findByPriority(priority);
+        } else if(status != null) {
+            return ticketRepository.findByStatus(status);
         } else {
             return ticketRepository.findAll();
         }
