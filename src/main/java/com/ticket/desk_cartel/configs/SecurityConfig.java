@@ -80,7 +80,16 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:5500"));
+        config.setAllowedOrigins(List.of(
+                // Production domains with HTTPS
+                "https://neilv.dev",
+                "https://www.neilv.dev",
+                "https://api.neilv.dev",
+                // Development domains with HTTP
+                "http://localhost:3000",   // Next.js frontend
+                "http://localhost:8080",   // Spring Boot backend
+                "http://127.0.0.1:5500"    // Live Server
+        ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         config.setAllowCredentials(true);
