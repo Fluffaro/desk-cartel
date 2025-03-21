@@ -1,9 +1,7 @@
 package com.ticket.desk_cartel.services;
 
 import com.ticket.desk_cartel.entities.*;
-import com.ticket.desk_cartel.repositories.CategoryRepository;
-import com.ticket.desk_cartel.repositories.TicketRepository;
-import com.ticket.desk_cartel.repositories.UserRepository;
+import com.ticket.desk_cartel.repositories.*;
 import com.ticket.desk_cartel.security.JwtUtil;
 import jakarta.security.auth.message.AuthException;
 import org.slf4j.Logger;
@@ -27,7 +25,9 @@ public class TicketService {
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
     private final CategoryRepository categoryRepository;
-    
+    private final NotificationRepository notificationRepository;
+    private final AgentRepository agentRepository;
+
     @Autowired
     private GeminiAIService geminiAIService;
     
@@ -37,12 +37,14 @@ public class TicketService {
     @Autowired
     private PriorityService priorityService;
 
-    public TicketService(TicketRepository ticketRepository, UserRepository userRepository, 
-                        JwtUtil jwtUtil, CategoryRepository categoryRepository) {
+    public TicketService(TicketRepository ticketRepository, UserRepository userRepository,
+                         JwtUtil jwtUtil, CategoryRepository categoryRepository, NotificationRepository notificationRepository, AgentRepository agentRepository) {
         this.ticketRepository = ticketRepository;
         this.userRepository = userRepository;
         this.jwtUtil = jwtUtil;
         this.categoryRepository = categoryRepository;
+        this.notificationRepository = notificationRepository;
+        this.agentRepository = agentRepository;
     }
 
     /**
@@ -120,6 +122,22 @@ public class TicketService {
             ticket = ticketRepository.save(ticket);
             logger.warn("Could not auto-assign ticket {}. No suitable agent available.", 
                     ticket.getTicketId());
+
+            Notification notification = new Notification();
+            notification.setTitle(title);
+            notification.setDescription(description);
+            notification.setTicket(ticket);
+            notification.setAssignedTicket(ticket.getAssignedTicket());
+            Optional<Agent> agentId = agentService.getAgentById(ticket.getAssignedTicket().getId());
+
+            Long id = agentId.get().getId();
+            Optional<Agent> agentOpt = agentRepository.findById(id);
+            Agent agentNotif = agentOpt.get();
+            int notifCount = agentNotif.getNotifCount();
+            agentNotif.setNotifCount(notifCount++);
+            agentRepository.save(agentNotif);
+
+            notificationRepository.save(notification);
             return ticket;
         }
     }

@@ -50,6 +50,8 @@ public class UserController {
             User user = userOptional.get();
             Map<String, Object> userInfo = new HashMap<>();
             userInfo.put("fullName", user.getFullName());
+            userInfo.put("Id", user.getId());
+            userInfo.put("role", user.getRole());
             userInfo.put("email", user.getEmail());
             logger.info("Retrieved user info for user: {}", user.getUsername());
             return ResponseEntity.ok(userInfo);
