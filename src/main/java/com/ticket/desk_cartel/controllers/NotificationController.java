@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/agent/categories")
+@RequestMapping("/api/notifications")
 public class NotificationController {
     private final NotificationService notificationService;
     private final AgentService agentService;
@@ -35,7 +35,7 @@ public class NotificationController {
         notificationService.clickedNotification(id);
     }
 
-    @PostMapping("/Notifications/{id}")
+    @PostMapping("/NotificationCount/{id}")
     public ResponseEntity<?> getAgentNotificationCount(@PathVariable Long id){
         return ResponseEntity.ok(notificationService.getAgentNumbersOfNotifications(id));
     }
