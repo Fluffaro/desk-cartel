@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/ticket")
+@RequestMapping("/api/tickets")
 public class TicketController {
 
     private final TicketService ticketService;
@@ -46,7 +46,7 @@ public class TicketController {
      * 
      * @return List of all tickets
      */
-    @GetMapping("/admin")
+    @GetMapping
     @PreAuthorize("hasRole('ADMIN')")  // Only admins can access this endpoint
     public ResponseEntity<List<Ticket>> getAllTickets() {
         List<Ticket> tickets = ticketService.getAllTickets();
@@ -72,6 +72,7 @@ public class TicketController {
      * @return List of tickets assigned to the agent
      */
     @GetMapping("/agent/{assignedAgent}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
     public ResponseEntity<List<Ticket>> getTicketsByAgent(@PathVariable Long assignedAgent) {
         List<Ticket> agentTickets = ticketService.getTicketsByAgent(assignedAgent);
         return ResponseEntity.ok(agentTickets);
@@ -101,7 +102,7 @@ public class TicketController {
      * @return List of matching tickets
      */
     @GetMapping("/filter")
-    public ResponseEntity<List<Ticket>> filterTicket(
+    public ResponseEntity<List<Ticket>> filterTickets(
             @RequestParam(required = false) Category category,
             @RequestParam(required = false) Priority priority,
             @RequestParam(required = false) Status status
@@ -111,7 +112,7 @@ public class TicketController {
     }
 
     /**
-     * Create a new ticket.
+     * Create a new ticket. Only accessible to clients, not agents.
      * Only title, description and categoryId are required.
      * Priority will be automatically determined by AI if not specified.
      * Status will default to ASSIGNED if not specified.
@@ -121,7 +122,8 @@ public class TicketController {
      * @return The created ticket
      * @throws Exception if creation fails
      */
-    @PostMapping()
+    @PostMapping("/create")
+    @PreAuthorize("hasRole('CLIENT') and !hasRole('AGENT')")  // Only clients can create tickets, not agents
     @Operation(
         summary = "Create a new ticket", 
         description = "Only title, description and categoryId are required. Priority will be automatically determined by AI if not specified. Status will default to ASSIGNED if not specified.",
@@ -193,7 +195,8 @@ public class TicketController {
      * @param token JWT authorization token
      * @return Updated ticket details
      */
-    @PutMapping("/{ticketId}")
+    @PutMapping("/{ticketId}/update")
+    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
     public ResponseEntity<Ticket> updateTicket(
             @PathVariable Long ticketId,
             @RequestParam(required = false) Long priorityId,
@@ -290,6 +293,7 @@ public class TicketController {
      * @return The updated ticket or error response
      */
     @PostMapping("/{ticketId}/complete")
+    @PreAuthorize("hasRole('CLIENT')")
     public ResponseEntity<?> completeTicketByClient(
             @PathVariable Long ticketId,
             @RequestParam Long userId,

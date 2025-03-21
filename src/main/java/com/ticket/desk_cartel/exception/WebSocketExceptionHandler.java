@@ -31,4 +31,4 @@ public class WebSocketExceptionHandler {
         
         return errorResponse;
     }
-}
+} 
