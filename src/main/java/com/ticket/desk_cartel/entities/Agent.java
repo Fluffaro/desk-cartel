@@ -47,6 +47,10 @@ public class Agent {
     private LocalDateTime createdAt = LocalDateTime.now();
     private LocalDateTime updatedAt = LocalDateTime.now();
 
+    @Column
+    private int notifCount;
+
+
     @Column(nullable = false)
     private boolean isActive = true;
 

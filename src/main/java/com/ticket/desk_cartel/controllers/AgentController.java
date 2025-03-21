@@ -3,7 +3,9 @@ package com.ticket.desk_cartel.controllers;
 import com.ticket.desk_cartel.entities.Agent;
 import com.ticket.desk_cartel.entities.AgentLevel;
 import com.ticket.desk_cartel.entities.Ticket;
+import com.ticket.desk_cartel.repositories.AgentRepository;
 import com.ticket.desk_cartel.services.AgentService;
+import com.ticket.desk_cartel.services.NotificationService;
 import com.ticket.desk_cartel.services.TicketService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -25,6 +27,11 @@ public class AgentController {
 
     private final AgentService agentService;
     private final TicketService ticketService;
+    @Autowired
+    private AgentRepository agentRepository;
+
+    @Autowired
+    private NotificationService notificationService;
 
     @Autowired
     public AgentController(AgentService agentService, TicketService ticketService) {
@@ -223,4 +230,8 @@ public class AgentController {
         
         return ResponseEntity.ok(updatedTicket);
     }
+
+
+
+
 } 
