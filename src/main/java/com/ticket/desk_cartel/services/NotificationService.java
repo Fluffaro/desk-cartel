@@ -24,7 +24,7 @@ public class NotificationService {
         agent.setNotifCount(0);
     }
 
-    public int getNumbersOfNotifications(Long id){
+    public int getAgentNumbersOfNotifications(Long id){
         Optional<Agent> agentOpt = agentRepository.findById(id);
 
         Agent agent = agentOpt.get();

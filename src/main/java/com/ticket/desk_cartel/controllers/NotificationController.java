@@ -36,12 +36,12 @@ public class NotificationController {
     }
 
     @PostMapping("/Notifications/{id}")
-    public ResponseEntity<?> getNotificationsCount(@PathVariable Long id){
-        return ResponseEntity.ok(notificationService.getNumbersOfNotifications(id));
+    public ResponseEntity<?> getAgentNotificationCount(@PathVariable Long id){
+        return ResponseEntity.ok(notificationService.getAgentNumbersOfNotifications(id));
     }
 
     @PostMapping("/Notifications/{id}")
-    public ResponseEntity<?> getAllUsersNotifications(@PathVariable Long id) throws Exception {
+    public ResponseEntity<?> getAgentAllNotifications(@PathVariable Long id) throws Exception {
         return ResponseEntity.ok(notificationService.getAllAgentNotification(id));
     }
 

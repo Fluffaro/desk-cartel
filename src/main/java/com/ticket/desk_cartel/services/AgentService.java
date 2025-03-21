@@ -387,8 +387,5 @@ public class AgentService {
         return agentRepository.save(agent);
     }
 
-    @PostMapping("/notifCount/{id}")
-    public ResponseEntity<?> getNotifCount(@PathVariable Long id){
-        return agent
-    }
+
 } 
