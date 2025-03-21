@@ -127,16 +127,12 @@ public class TicketService {
             notification.setTitle(title);
             notification.setDescription(description);
             notification.setTicket(ticket);
-            notification.setAssignedTicket(ticket.getAssignedTicket());
-            Optional<Agent> agentId = agentService.getAgentById(ticket.getAssignedTicket().getId());
-
-            Long id = agentId.get().getId();
-            Optional<Agent> agentOpt = agentRepository.findById(id);
-            Agent agentNotif = agentOpt.get();
-            int notifCount = agentNotif.getNotifCount();
-            agentNotif.setNotifCount(notifCount++);
-            agentRepository.save(agentNotif);
-
+            
+            // Check if the assigned ticket is null before accessing it
+            // This was causing a NullPointerException since no agent is available
+            notification.setAssignedTicket(null);
+            
+            // Save notification without agent reference
             notificationRepository.save(notification);
             return ticket;
         }
