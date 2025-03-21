@@ -51,7 +51,7 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**").permitAll()
                         
                         // Public category endpoint for ticket creation
-                        .requestMatchers("/api/categories/active").permitAll()
+                        //.requestMatchers("/api/categories/active").permitAll()
                         
                         // Admin-only endpoints
                         .requestMatchers("/admin/**").hasRole("ADMIN")
