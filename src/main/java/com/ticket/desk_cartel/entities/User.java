@@ -49,7 +49,7 @@ public class User {
 
     // Store a single role directly in this column. Default is "USER".
     @Column(nullable = false)
-    private String role = "USER";
+    private String role = "CLIENT";
 
 
     @OneToMany(mappedBy = "author", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
