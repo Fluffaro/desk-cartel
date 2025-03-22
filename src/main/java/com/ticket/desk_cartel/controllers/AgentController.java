@@ -22,7 +22,7 @@ import java.util.Optional;
  * REST controller for managing agent operations and assignments.
  */
 @RestController
-@RequestMapping("/api/agents")
+@RequestMapping("${api.agent.base-url}")
 public class AgentController {
 
     private final AgentService agentService;
@@ -55,7 +55,7 @@ public class AgentController {
      * @param id The agent ID
      * @return The agent or 404 if not found
      */
-    @GetMapping("/{id}")
+    @GetMapping("${api.agent.id}")
     public ResponseEntity<Agent> getAgentById(@PathVariable Long id) {
         Optional<Agent> agent = agentService.getAgentById(id);
         return agent.map(ResponseEntity::ok)
@@ -68,7 +68,7 @@ public class AgentController {
      * @param id The agent ID
      * @return List of tickets assigned to the agent
      */
-    @GetMapping("/{id}/tickets")
+    @GetMapping("${api.agent.agentTicket}")
     public ResponseEntity<List<Ticket>> getAgentTickets(@PathVariable Long id) {
         Optional<Agent> agent = agentService.getAgentById(id);
         if (agent.isEmpty()) {
@@ -102,7 +102,7 @@ public class AgentController {
      * @param active The new active status
      * @return The updated agent or 404 if not found
      */
-    @PutMapping("/{id}/active")
+    @PutMapping("${api.agent.status}")
     public ResponseEntity<?> setAgentActiveStatus(
             @PathVariable Long id,
             @RequestParam boolean active) {
@@ -117,7 +117,7 @@ public class AgentController {
      * @param id The agent ID
      * @return Agent statistics
      */
-    @GetMapping("/{id}/stats")
+    @GetMapping("${api.agent.stats}")
     public ResponseEntity<Map<String, Object>> getAgentStats(@PathVariable Long id) {
         Optional<Agent> agentOpt = agentService.getAgentById(id);
         if (agentOpt.isEmpty()) {
@@ -156,7 +156,7 @@ public class AgentController {
      * 
      * @return List of agents sorted by total performance points
      */
-    @GetMapping("/leaderboard")
+    @GetMapping("${api.agent.leader}")
     public ResponseEntity<List<Map<String, Object>>> getAgentLeaderboard() {
         List<Agent> allAgents = agentService.getAllAgents();
         
@@ -188,7 +188,7 @@ public class AgentController {
      * @param userId The user ID
      * @return List of tickets assigned to the agent or 404 if user is not an agent
      */
-    @GetMapping("/by-user/{userId}/tickets")
+    @GetMapping("${api.agent.userid}")
     public ResponseEntity<List<Ticket>> getAgentTicketsByUser(@PathVariable Long userId) {
         Optional<Agent> agent = agentService.findAgentByUserId(userId);
         if (agent.isEmpty()) {
@@ -205,7 +205,7 @@ public class AgentController {
      * @param token The JWT authorization token
      * @return The updated ticket or error response
      */
-    @PostMapping("/by-user/{userId}/tickets/{ticketId}/start")
+    @PostMapping("${api.agent.startwork}")
     public ResponseEntity<?> startTicket(
             @PathVariable Long userId,
             @PathVariable Long ticketId,

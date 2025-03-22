@@ -20,7 +20,7 @@ import java.util.Optional;
  * </p>
  */
 @RestController
-@RequestMapping("/users")
+@RequestMapping("${api.user.base-url}")
 public class UserController {
 
     // Logger for logging important events and errors.
@@ -38,7 +38,7 @@ public class UserController {
      * @param principal Security principal containing the username.
      * @return ResponseEntity with user details or an error message.
      */
-    @GetMapping("/me")
+    @GetMapping("${api.user.me}")
     public ResponseEntity<?> getCurrentUser(Principal principal) {
         if (principal == null) {
             logger.warn("Unauthorized access attempt to /me endpoint.");

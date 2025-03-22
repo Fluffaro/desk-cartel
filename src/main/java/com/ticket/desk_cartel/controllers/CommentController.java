@@ -33,7 +33,7 @@ public class CommentController {
         return ResponseEntity.ok(comment);
     }
 
-    @GetMapping("/{ticketId}")
+    @GetMapping("${api.comment.ticketId}")
     public ResponseEntity<List<Comment>> getCommentsByTicket (
             @PathVariable Long ticketId
     ) throws Exception {
@@ -41,7 +41,7 @@ public class CommentController {
         return ResponseEntity.ok(comments);
     }
 
-    @PutMapping("/{commentId}")
+    @PutMapping("${api.comment.commentId}")
     public ResponseEntity<Comment> editComment (@PathVariable Long commentId, @RequestParam String text) throws Exception {
         System.out.println("Received commentId: " + commentId + " and text: " + text);
         Comment comment = commentService.editComment(commentId, text);
