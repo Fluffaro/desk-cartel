@@ -16,7 +16,7 @@ public interface AgentRepository extends JpaRepository<Agent, Long> {
 
     Optional<Agent> findByUser(User user);
     
-    Optional<Agent> findByUserId(Long userId);
+    Optional<Agent> findByUser_Id(Long userId);
     
     List<Agent> findByLevel(AgentLevel level);
 
@@ -30,5 +30,15 @@ public interface AgentRepository extends JpaRepository<Agent, Long> {
     
     // Alternative method using Spring Data naming convention
     List<Agent> findByCurrentWorkloadLessThanAndIsActiveTrue(int totalCapacity);
+
+
+    /**
+     * Custom query to find agents by user_id.
+     *
+     * @param userId the user ID to search by.
+     * @return a list of agents associated with the given user ID.
+     */
+    @Query("SELECT a FROM Agent a WHERE a.user.id = :userId")
+    Optional<Agent> findByUserId(@Param("userId") Long userId);
 
 } 

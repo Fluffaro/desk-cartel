@@ -374,7 +374,11 @@ public class AgentService {
      * @return the agent or empty if not found
      */
     public Optional<Agent> findAgentByUserId(Long userId) {
-        return agentRepository.findByUserId(userId);
+        Optional<Agent> agent = agentRepository.findByUserId(userId);
+        if (agent.isEmpty()) {
+            System.out.println("No agent found for userId: " + userId);
+        }
+        return agent;
     }
     
     /**
