@@ -1,10 +1,7 @@
 package com.ticket.desk_cartel.controllers;
 
 import com.ticket.desk_cartel.dto.TicketDTO;
-import com.ticket.desk_cartel.entities.Category;
-import com.ticket.desk_cartel.entities.Priority;
-import com.ticket.desk_cartel.entities.Status;
-import com.ticket.desk_cartel.entities.Ticket;
+import com.ticket.desk_cartel.entities.*;
 import com.ticket.desk_cartel.services.AgentService;
 import com.ticket.desk_cartel.services.TicketService;
 import com.ticket.desk_cartel.services.PriorityService;
@@ -22,6 +19,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("${api.ticket.base-url}")
@@ -314,5 +312,20 @@ public class TicketController {
                      updatedTicket.getTicketOwner().getUsername() + ". Thank you for your feedback!");
         
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Get all tickets assigned to an agent identified by user ID.
+     *
+     * @param userId The user ID
+     * @return List of tickets assigned to the agent or 404 if user is not an agent
+     */
+    @GetMapping("${api.ticket.userid}")
+    public ResponseEntity<List<Ticket>> getAgentTicketsByUser(@PathVariable Long userId) {
+        Optional<Agent> agent = agentService.findAgentByUserId(userId);
+        if (agent.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(ticketService.getTicketsByAgent(agent.get().getId()));
     }
 }

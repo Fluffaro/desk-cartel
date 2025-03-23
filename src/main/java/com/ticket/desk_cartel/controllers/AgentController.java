@@ -182,20 +182,7 @@ public class AgentController {
         return ResponseEntity.ok(leaderboard);
     }
 
-    /**
-     * Get all tickets assigned to an agent identified by user ID.
-     * 
-     * @param userId The user ID
-     * @return List of tickets assigned to the agent or 404 if user is not an agent
-     */
-    @GetMapping("${api.agent.userid}")
-    public ResponseEntity<List<Ticket>> getAgentTicketsByUser(@PathVariable Long userId) {
-        Optional<Agent> agent = agentService.findAgentByUserId(userId);
-        if (agent.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(ticketService.getTicketsByAgent(agent.get().getId()));
-    }
+
 
     /**
      * Start work on a ticket by user ID.
