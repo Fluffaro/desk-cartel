@@ -33,7 +33,7 @@ public class User {
     private String email;
 
     @Column
-    private int notifCount;
+    private int notifCount = 0;  // default value
 
     public int getNotifCount() {
         return notifCount;

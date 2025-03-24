@@ -33,6 +33,9 @@ public class TicketAssignmentScheduler {
     private final UserRepository userRepository;
     
     @Autowired
+    private NotificationService notificationService;
+    
+    @Autowired
     public TicketAssignmentScheduler(TicketRepository ticketRepository, AgentService agentService, NotificationRepository notificationRepository, AgentRepository agentRepository, UserRepository userRepository) {
         this.ticketRepository = ticketRepository;
         this.agentService = agentService;
@@ -67,37 +70,34 @@ public class TicketAssignmentScheduler {
             
             Ticket updatedTicket = agentService.assignTicketToAgent(ticket.getTicketId());
 
-
-
             if (updatedTicket != null && updatedTicket.getAssignedTicket() != null) {
-
-                Optional<Notification> notificationOpt = notificationRepository.findByTicketCreator_Id(ticket.getTicketOwner().getId().longValue());
-                Notification notification = notificationOpt.get();
-                notification.setTitle(updatedTicket.getTitle());
-                notification.setDescription(updatedTicket.getDescription());
-                notification.setTicket(updatedTicket);
-                notification.setAssignedTicket(updatedTicket.getAssignedTicket());
-
-                Optional<Agent> agentId = agentService.getAgentById(updatedTicket.getAssignedTicket().getId());
-
-                Long id = agentId.get().getId();
-                Optional<Agent> agentOpt = agentRepository.findById(id);
-                Agent agentNotif = agentOpt.get();
-                int notifCount = agentNotif.getNotifCount();
-                agentNotif.setNotifCount(notifCount + 1);
-
-                Long userId = ticket.getTicketOwner().getId().longValue();
-                Optional<User> userOpt = userRepository.findById(userId);
-                User userNotif = userOpt.get();
-                int userNotifCount = userNotif.getNotifCount();
-                userNotif.setNotifCount(userNotifCount + 1);
-
-                agentRepository.save(agentNotif);
-                userRepository.save(userNotif);
-
-                notificationRepository.save(notification);
-
-
+                // The notification to the agent is already sent by the agentService.assignTicketToAgent method
+                
+                // Notify the user that their ticket has been assigned to an agent
+                // Create a user notification that their ticket has been assigned
+                Notification userNotification = new Notification();
+                userNotification.setTitle("Ticket Assigned: " + updatedTicket.getTitle());
+                userNotification.setDescription("Your ticket #" + updatedTicket.getTicketId() + 
+                        " has been assigned to an agent and is now being processed.");
+                userNotification.setTicket(updatedTicket);
+                userNotification.setAssignedTicket(updatedTicket.getAssignedTicket());
+                userNotification.setTicketCreator(updatedTicket.getTicketOwner());
+                
+                // Increment user notification count
+                if (updatedTicket.getTicketOwner() != null) {
+                    Long userId = updatedTicket.getTicketOwner().getId();
+                    Optional<User> userOpt = userRepository.findById(userId);
+                    
+                    if (userOpt.isPresent()) {
+                        User userNotif = userOpt.get();
+                        int userNotifCount = userNotif.getNotifCount();
+                        userNotif.setNotifCount(userNotifCount + 1);
+                        userRepository.save(userNotif);
+                    }
+                }
+                
+                notificationRepository.save(userNotification);
+                
                 logger.info("Successfully assigned ticket {} to agent {}.", 
                         updatedTicket.getTicketId(), updatedTicket.getAssignedTicket().getId());
             } else {

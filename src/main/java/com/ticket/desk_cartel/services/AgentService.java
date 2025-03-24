@@ -33,6 +33,9 @@ public class AgentService {
     private final NotificationRepository notificationRepository;
     
     @Autowired
+    private NotificationService notificationService;
+    
+    @Autowired
     public AgentService(
             AgentRepository agentRepository,
             UserRepository userRepository,
@@ -164,7 +167,12 @@ public class AgentService {
         
         // Save changes
         agentRepository.save(agent);
-        return ticketRepository.save(ticket);
+        Ticket updatedTicket = ticketRepository.save(ticket);
+        
+        // Create notification for the agent about the new assignment
+        notificationService.createTicketAssignedNotification(updatedTicket);
+        
+        return updatedTicket;
     }
     
     /**
@@ -202,23 +210,6 @@ public class AgentService {
         LocalDateTime now = LocalDateTime.now();
         ticket.setStatus(Status.ONGOING);
         ticket.setDate_started(now);
-
-        Notification notification = new Notification();
-        notification.setTitle(ticket.getTitle());
-        notification.setDescription("Ticket has now been started by " + ticket.getAssignedTicket());
-        notification.setTicket(ticket);
-        notification.setAssignedTicket(ticket.getAssignedTicket());
-        notification.setTicketCreator(ticket.getTicketOwner());
-        Optional<Agent> agentIdOpt = getAgentById(ticket.getAssignedTicket().getId());
-
-        Long userId = ticket.getTicketOwner().getId().longValue();
-        Optional<User> userOpt = userRepository.findById(userId);
-        User userNotif = userOpt.get();
-        int userNotifCount = userNotif.getNotifCount();
-        userNotif.setNotifCount(userNotifCount + 1);
-        userRepository.save(userNotif);
-
-        notificationRepository.save(notification);
         
         // Calculate expected completion date based on priority time limit
         int hoursLimit = ticket.getPriority().getTimeLimit();
@@ -227,7 +218,13 @@ public class AgentService {
         logger.info("Ticket {} started with expected completion in {} hours (by {})", 
                 ticketId, hoursLimit, expectedCompletion);
         
-        return ticketRepository.save(ticket);
+        // Save the ticket
+        Ticket updatedTicket = ticketRepository.save(ticket);
+        
+        // Create notification for the user that work has started
+        notificationService.createTicketStartedNotification(updatedTicket);
+        
+        return updatedTicket;
     }
     
     /**
@@ -275,40 +272,42 @@ public class AgentService {
         logger.info("Agent {} earned {} performance points for completing ticket {}", 
                 agentId, performancePoints, ticketId);
         
-        // Update ticket
-        ticket.setStatus(Status.COMPLETED);
-        
         // Update agent's workload and completed tickets count with performance points
         agent.reduceWorkload(ticket.getPriority().getWeight());
         agent.addCompletedTicketWithPoints(performancePoints);
-
-        Notification notification = new Notification();
-        notification.setTitle(ticket.getTitle());
-        notification.setDescription("Ticket has now been" + ticket.getStatus().toString());
-        notification.setTicket(ticket);
-        notification.setAssignedTicket(ticket.getAssignedTicket());
-        notification.setTicketCreator(ticket.getTicketOwner());
-        Optional<Agent> agentIdOpt = getAgentById(ticket.getAssignedTicket().getId());
-
-        Long id = agentIdOpt.get().getId();
-        Optional<Agent> agentOpt = agentRepository.findById(id);
-        Agent agentNotif = agentOpt.get();
-        int notifCount = agentNotif.getNotifCount();
-        agentNotif.setNotifCount(notifCount++);
-        agentRepository.save(agentNotif);
-
-        Long userId = ticket.getTicketOwner().getId().longValue();
-        Optional<User> userOpt = userRepository.findById(userId);
-        User userNotif = userOpt.get();
-        int userNotifCount = userNotif.getNotifCount();
-        userNotif.setNotifCount(userNotifCount + 1);
-        userRepository.save(userNotif);
-
-        notificationRepository.save(notification);
+        
+        // Update ticket status
+        ticket.setStatus(Status.COMPLETED);
         
         // Save changes
         agentRepository.save(agent);
-        return ticketRepository.save(ticket);
+        Ticket updatedTicket = ticketRepository.save(ticket);
+        
+        // Create notification for user about ticket completion by agent
+        Notification userNotification = new Notification();
+        userNotification.setTitle("Ticket Completed: " + updatedTicket.getTitle());
+        userNotification.setDescription("Your ticket #" + updatedTicket.getTicketId() + 
+                " has been completed by the agent. Thank you for using our support system.");
+        userNotification.setTicket(updatedTicket);
+        userNotification.setAssignedTicket(updatedTicket.getAssignedTicket());
+        userNotification.setTicketCreator(updatedTicket.getTicketOwner());
+        
+        // Increment user notification count if possible
+        if (updatedTicket.getTicketOwner() != null) {
+            Long userId = updatedTicket.getTicketOwner().getId();
+            Optional<User> userOpt = userRepository.findById(userId);
+            
+            if (userOpt.isPresent()) {
+                User userNotif = userOpt.get();
+                int userNotifCount = userNotif.getNotifCount();
+                userNotif.setNotifCount(userNotifCount + 1);
+                userRepository.save(userNotif);
+            }
+        }
+        
+        notificationRepository.save(userNotification);
+        
+        return updatedTicket;
     }
     
     /**
