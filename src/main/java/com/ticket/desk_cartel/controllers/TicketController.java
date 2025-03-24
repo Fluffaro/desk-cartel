@@ -1,6 +1,7 @@
 package com.ticket.desk_cartel.controllers;
 
 import com.ticket.desk_cartel.dto.TicketDTO;
+import com.ticket.desk_cartel.dto.TicketSortDTO;
 import com.ticket.desk_cartel.entities.*;
 import com.ticket.desk_cartel.services.AgentService;
 import com.ticket.desk_cartel.services.TicketService;
@@ -327,5 +328,80 @@ public class TicketController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(ticketService.getTicketsByAgent(agent.get().getId()));
+    }
+
+    /**
+     * Get tickets sorted by the specified field and direction.
+     * 
+     * @param sortDTO Sorting parameters (field to sort by and direction)
+     * @return List of sorted tickets
+     */
+    @GetMapping("/sort")
+    @Operation(
+        summary = "Get sorted tickets",
+        description = "Returns tickets sorted by the specified field and direction"
+    )
+    @ApiResponse(responseCode = "200", description = "Successfully retrieved sorted tickets", 
+                 content = @Content(schema = @Schema(implementation = Ticket.class)))
+    public ResponseEntity<List<Ticket>> getSortedTickets(@Valid @RequestBody TicketSortDTO sortDTO) {
+        List<Ticket> sortedTickets = ticketService.getSortedTickets(
+            sortDTO.getSortBy(), 
+            sortDTO.getDirection()
+        );
+        return ResponseEntity.ok(sortedTickets);
+    }
+
+    /**
+     * Get tickets sorted by the specified field and direction using request parameters.
+     * 
+     * @param sortBy Field to sort by (default: "ticketId")
+     * @param direction Sort direction (default: "ASC")
+     * @return List of sorted tickets
+     */
+    @GetMapping("/sort-by")
+    @Operation(
+        summary = "Get sorted tickets using query parameters",
+        description = "Returns tickets sorted by the specified field and direction using query parameters"
+    )
+    @ApiResponse(responseCode = "200", description = "Successfully retrieved sorted tickets", 
+                 content = @Content(schema = @Schema(implementation = Ticket.class)))
+    public ResponseEntity<List<Ticket>> getSortedTicketsByParams(
+            @RequestParam(defaultValue = "ticketId") String sortBy,
+            @RequestParam(defaultValue = "ASC") String direction) {
+        List<Ticket> sortedTickets = ticketService.getSortedTickets(sortBy, direction);
+        return ResponseEntity.ok(sortedTickets);
+    }
+
+    /**
+     * Filter and sort tickets based on various criteria.
+     * 
+     * @param category Category filter (optional)
+     * @param priority Priority filter (optional)
+     * @param status Status filter (optional)
+     * @param sortBy Field to sort by (default: "ticketId")
+     * @param direction Sort direction (default: "ASC")
+     * @return List of filtered and sorted tickets
+     */
+    @GetMapping("/filter-sort")
+    @Operation(
+        summary = "Filter and sort tickets",
+        description = "Returns tickets filtered by the specified criteria and sorted by the specified field and direction"
+    )
+    @ApiResponse(responseCode = "200", description = "Successfully retrieved filtered and sorted tickets", 
+                 content = @Content(schema = @Schema(implementation = Ticket.class)))
+    public ResponseEntity<List<Ticket>> filterAndSortTickets(
+            @RequestParam(required = false) Category category,
+            @RequestParam(required = false) Priority priority,
+            @RequestParam(required = false) Status status,
+            @RequestParam(defaultValue = "ticketId") String sortBy,
+            @RequestParam(defaultValue = "ASC") String direction) {
+        List<Ticket> filteredAndSortedTickets = ticketService.filterAndSortTickets(
+            category, 
+            priority, 
+            status, 
+            sortBy, 
+            direction
+        );
+        return ResponseEntity.ok(filteredAndSortedTickets);
     }
 }
