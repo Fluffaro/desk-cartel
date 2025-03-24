@@ -7,7 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/admin/categories")
+@RequestMapping("${api.category.base-url}")
 public class CategoryController {
     private final CategoryService categoryService;
 
@@ -20,29 +20,29 @@ public class CategoryController {
         return ResponseEntity.ok(categoryService.getAllCategories());
     }
 
-    @GetMapping("/active")
+    @GetMapping("${api.category.active}")
     public ResponseEntity<?> getActiveCategories(){
         return ResponseEntity.ok(categoryService.getActiveCategories());
     }
 
-    @PostMapping("/create")
+    @PostMapping("${api.category.create}")
     public ResponseEntity<?> createCategory(@RequestBody Category category) throws AuthException {
         return ResponseEntity.ok(categoryService.categoryCreation(category.getName(), category.getDescription(), category.getPoints(), category.getIsActive()));
     }
 
-    @PutMapping("/deactivate")
+    @PutMapping("${api.category.deactivate}")
     public ResponseEntity<?> deactivateCategory(@RequestParam Long id) throws AuthException {
         return ResponseEntity.ok(categoryService.deactivateCategory(id));
 
     }
 
-    @GetMapping("/getCategory")
+    @GetMapping("${api.category.get}")
     public ResponseEntity<?> getACategory(@RequestParam Long id) throws AuthException {
         return ResponseEntity.ok(categoryService.getACategory(id));
 
     }
 
-    @PutMapping("/updateCategory")
+    @PutMapping("${api.category.update}")
     public ResponseEntity<?> updateCategory(@RequestParam Long id, @RequestBody Category category) throws AuthException {
         return ResponseEntity.ok(categoryService.updateCategory(id, category.getName(), category.getDescription(),category.getIsActive(), category.getPoints()));
     }
@@ -51,7 +51,7 @@ public class CategoryController {
 
 // Create a separate controller for public category access
 @RestController
-@RequestMapping("/api/categories")
+@RequestMapping("${api.public.base-url}")
 class PublicCategoryController {
     private final CategoryService categoryService;
 
@@ -60,7 +60,7 @@ class PublicCategoryController {
     }
 
     // Public endpoint for users to get active categories when creating tickets
-    @GetMapping("/active")
+    @GetMapping("${api.public.active}")
     public ResponseEntity<?> getActiveCategories(){
         return ResponseEntity.ok(categoryService.getActiveCategories());
     }

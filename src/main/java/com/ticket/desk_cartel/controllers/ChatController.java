@@ -25,7 +25,7 @@ import java.util.ArrayList;
 import java.time.LocalDateTime;
 
 @RestController  // Use @RestController for both WebSocket and REST API
-@RequestMapping("/api/chat")
+@RequestMapping("${api.chat.base-url}")
 @CrossOrigin(origins = "*")  // Allow frontend access
 public class ChatController {
 

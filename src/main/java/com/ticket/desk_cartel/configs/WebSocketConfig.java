@@ -31,32 +31,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws-chat")
-                .setAllowedOrigins(
-                    // Production domains with HTTPS
-                    "https://neilv.dev", 
-                    "https://www.neilv.dev", 
-                    "https://api.neilv.dev",
-                    // Development domains with HTTP
-                    "http://127.0.0.1:5500", 
-                    "http://localhost:5500", 
-                    "http://localhost:8080",
-                    "http://localhost:3000"
-                )
+                .setAllowedOrigins("http://127.0.0.1:5500", "http://localhost:5500", "http://localhost:8080")  // ✅ Allow WebSocket connections from Live Server
                 .addInterceptors(new JwtHandshakeInterceptor(jwtUtil));
 
 
         registry.addEndpoint("/ws-chat-sockjs")
-                .setAllowedOrigins(
-                    // Production domains with HTTPS
-                    "https://neilv.dev", 
-                    "https://www.neilv.dev", 
-                    "https://api.neilv.dev",
-                    // Development domains with HTTP
-                    "http://127.0.0.1:5500", 
-                    "http://localhost:5500", 
-                    "http://localhost:8080",
-                    "http://localhost:3000"
-                )
+                .setAllowedOrigins("http://127.0.0.1:5500", "http://localhost:5500", "http://localhost:8080")  // ✅ Allow WebSocket connections from Live Server
                 .addInterceptors(new JwtHandshakeInterceptor(jwtUtil))
                 .withSockJS()  // ✅ Enable SockJS fallback
                 .setHeartbeatTime(25000); // Set SockJS heartbeat to 25 seconds (default is 25s)

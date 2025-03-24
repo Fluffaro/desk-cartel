@@ -30,18 +30,33 @@ public class NotificationController {
         return ResponseEntity.ok(agentNotif.getNotifCount());
     }
 
+    @PutMapping("/clickedNotification")
+    public void agentClickedNotification(@RequestParam Long id){
+        notificationService.clickedAgentNotification(id);
+    }
+
     @PutMapping("/clickedNotification/{id}")
-    public void clickedNotification(@PathVariable Long id){
-        notificationService.clickedNotification(id);
+    public void userClickedNotification(@PathVariable Long id){
+        notificationService.clickedUserNotification(id);
+    }
+
+    @PostMapping("/NotificationCount")
+    public ResponseEntity<?> getAgentNotificationCount(@RequestParam Long id){
+        return ResponseEntity.ok(notificationService.getAgentNumbersOfNotifications(id));
+    }
+
+    @PostMapping("/Notifications")
+    public ResponseEntity<?> getAgentAllNotifications(@RequestParam Long id) throws Exception {
+        return ResponseEntity.ok(notificationService.getAllAgentNotification(id));
     }
 
     @PostMapping("/NotificationCount/{id}")
-    public ResponseEntity<?> getAgentNotificationCount(@PathVariable Long id){
+    public ResponseEntity<?> getUserNotificationCount(@PathVariable Long id){
         return ResponseEntity.ok(notificationService.getAgentNumbersOfNotifications(id));
     }
 
     @PostMapping("/Notifications/{id}")
-    public ResponseEntity<?> getAgentAllNotifications(@PathVariable Long id) throws Exception {
+    public ResponseEntity<?> getUserAllNotifications(@PathVariable Long id) throws Exception {
         return ResponseEntity.ok(notificationService.getAllAgentNotification(id));
     }
 

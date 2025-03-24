@@ -50,6 +50,13 @@ public class Agent {
     @Column
     private int notifCount;
 
+    public int getNotifCount() {
+        return notifCount;
+    }
+
+    public void setNotifCount(int notifCount) {
+        this.notifCount = notifCount;
+    }
 
     @Column(nullable = false)
     private boolean isActive = true;

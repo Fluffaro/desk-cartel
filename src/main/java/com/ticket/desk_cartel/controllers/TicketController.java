@@ -1,10 +1,8 @@
 package com.ticket.desk_cartel.controllers;
 
 import com.ticket.desk_cartel.dto.TicketDTO;
-import com.ticket.desk_cartel.entities.Category;
-import com.ticket.desk_cartel.entities.Priority;
-import com.ticket.desk_cartel.entities.Status;
-import com.ticket.desk_cartel.entities.Ticket;
+import com.ticket.desk_cartel.dto.TicketSortDTO;
+import com.ticket.desk_cartel.entities.*;
 import com.ticket.desk_cartel.services.AgentService;
 import com.ticket.desk_cartel.services.TicketService;
 import com.ticket.desk_cartel.services.PriorityService;
@@ -15,7 +13,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -23,9 +20,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
-@RequestMapping("/api/tickets")
+@RequestMapping("${api.ticket.base-url}")
 public class TicketController {
 
     private final TicketService ticketService;
@@ -59,7 +57,7 @@ public class TicketController {
      * @param userId The user ID
      * @return List of tickets created by the user
      */
-    @GetMapping("/user/{userId}")
+    @GetMapping("${api.ticket.getTicketByUser}")
     public ResponseEntity<List<Ticket>> getTicketsByUserId(@PathVariable Long userId) {
         List<Ticket> userTickets = ticketService.getTicketsByUserId(userId);
         return ResponseEntity.ok(userTickets);
@@ -71,7 +69,7 @@ public class TicketController {
      * @param assignedAgent The agent ID
      * @return List of tickets assigned to the agent
      */
-    @GetMapping("/agent/{assignedAgent}")
+    @GetMapping("${api.ticket.getTicketByAgent}")
     @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
     public ResponseEntity<List<Ticket>> getTicketsByAgent(@PathVariable Long assignedAgent) {
         List<Ticket> agentTickets = ticketService.getTicketsByAgent(assignedAgent);
@@ -84,7 +82,7 @@ public class TicketController {
      * @param ticketId The ticket ID
      * @return The ticket or 404 if not found
      */
-    @GetMapping("/{ticketId}")
+    @GetMapping("${api.ticket.ticketId}")
     public ResponseEntity<Ticket> getTicketById(@PathVariable Long ticketId) {
         Ticket ticket = ticketService.getTicketById(ticketId);
         if(ticket == null) {
@@ -101,7 +99,7 @@ public class TicketController {
      * @param status Status filter (optional)
      * @return List of matching tickets
      */
-    @GetMapping("/filter")
+    @GetMapping("${api.ticket.filter}")
     public ResponseEntity<List<Ticket>> filterTickets(
             @RequestParam(required = false) Category category,
             @RequestParam(required = false) Priority priority,
@@ -122,7 +120,7 @@ public class TicketController {
      * @return The created ticket
      * @throws Exception if creation fails
      */
-    @PostMapping("/create")
+    @PostMapping("${api.ticket.create}")
     @PreAuthorize("hasRole('CLIENT') and !hasRole('AGENT')")  // Only clients can create tickets, not agents
     @Operation(
         summary = "Create a new ticket", 
@@ -195,7 +193,7 @@ public class TicketController {
      * @param token JWT authorization token
      * @return Updated ticket details
      */
-    @PutMapping("/{ticketId}/update")
+    @PutMapping("${api.ticket.update}")
     @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
     public ResponseEntity<Ticket> updateTicket(
             @PathVariable Long ticketId,
@@ -231,7 +229,7 @@ public class TicketController {
      * @param token JWT authorization token
      * @return The updated ticket
      */
-    @PostMapping("/{ticketId}/assign/{agentId}")
+    @PostMapping("${api.ticket.assignAgent}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> assignTicketToAgent(
             @PathVariable Long ticketId,
@@ -256,7 +254,7 @@ public class TicketController {
      * @param ticketId The ticket ID
      * @return The updated ticket
      */
-    @PostMapping("/{ticketId}/auto-assign")
+    @PostMapping("${api.ticket.autoAssign}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> autoAssignTicket(@PathVariable Long ticketId) {
         Ticket updatedTicket = ticketService.getTicketById(ticketId);
@@ -292,7 +290,7 @@ public class TicketController {
      * @param token The JWT authorization token
      * @return The updated ticket or error response
      */
-    @PostMapping("/{ticketId}/complete")
+    @PostMapping("${api.ticket.complete}")
     @PreAuthorize("hasRole('CLIENT')")
     public ResponseEntity<?> completeTicketByClient(
             @PathVariable Long ticketId,
@@ -315,5 +313,95 @@ public class TicketController {
                      updatedTicket.getTicketOwner().getUsername() + ". Thank you for your feedback!");
         
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Get all tickets assigned to an agent identified by user ID.
+     *
+     * @param userId The user ID
+     * @return List of tickets assigned to the agent or 404 if user is not an agent
+     */
+    @GetMapping("${api.ticket.userid}")
+    public ResponseEntity<List<Ticket>> getAgentTicketsByUser(@PathVariable Long userId) {
+        Optional<Agent> agent = agentService.findAgentByUserId(userId);
+        if (agent.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(ticketService.getTicketsByAgent(agent.get().getId()));
+    }
+
+    /**
+     * Get tickets sorted by the specified field and direction.
+     * 
+     * @param sortDTO Sorting parameters (field to sort by and direction)
+     * @return List of sorted tickets
+     */
+    @GetMapping("/sort")
+    @Operation(
+        summary = "Get sorted tickets",
+        description = "Returns tickets sorted by the specified field and direction"
+    )
+    @ApiResponse(responseCode = "200", description = "Successfully retrieved sorted tickets", 
+                 content = @Content(schema = @Schema(implementation = Ticket.class)))
+    public ResponseEntity<List<Ticket>> getSortedTickets(@Valid @RequestBody TicketSortDTO sortDTO) {
+        List<Ticket> sortedTickets = ticketService.getSortedTickets(
+            sortDTO.getSortBy(), 
+            sortDTO.getDirection()
+        );
+        return ResponseEntity.ok(sortedTickets);
+    }
+
+    /**
+     * Get tickets sorted by the specified field and direction using request parameters.
+     * 
+     * @param sortBy Field to sort by (default: "ticketId")
+     * @param direction Sort direction (default: "ASC")
+     * @return List of sorted tickets
+     */
+    @GetMapping("/sort-by")
+    @Operation(
+        summary = "Get sorted tickets using query parameters",
+        description = "Returns tickets sorted by the specified field and direction using query parameters"
+    )
+    @ApiResponse(responseCode = "200", description = "Successfully retrieved sorted tickets", 
+                 content = @Content(schema = @Schema(implementation = Ticket.class)))
+    public ResponseEntity<List<Ticket>> getSortedTicketsByParams(
+            @RequestParam(defaultValue = "ticketId") String sortBy,
+            @RequestParam(defaultValue = "ASC") String direction) {
+        List<Ticket> sortedTickets = ticketService.getSortedTickets(sortBy, direction);
+        return ResponseEntity.ok(sortedTickets);
+    }
+
+    /**
+     * Filter and sort tickets based on various criteria.
+     * 
+     * @param category Category filter (optional)
+     * @param priority Priority filter (optional)
+     * @param status Status filter (optional)
+     * @param sortBy Field to sort by (default: "ticketId")
+     * @param direction Sort direction (default: "ASC")
+     * @return List of filtered and sorted tickets
+     */
+    @GetMapping("/filter-sort")
+    @Operation(
+        summary = "Filter and sort tickets",
+        description = "Returns tickets filtered by the specified criteria and sorted by the specified field and direction"
+    )
+    @ApiResponse(responseCode = "200", description = "Successfully retrieved filtered and sorted tickets", 
+                 content = @Content(schema = @Schema(implementation = Ticket.class)))
+    public ResponseEntity<List<Ticket>> filterAndSortTickets(
+            @RequestParam(required = false) Category category,
+            @RequestParam(required = false) Priority priority,
+            @RequestParam(required = false) Status status,
+            @RequestParam(defaultValue = "ticketId") String sortBy,
+            @RequestParam(defaultValue = "ASC") String direction) {
+        List<Ticket> filteredAndSortedTickets = ticketService.filterAndSortTickets(
+            category, 
+            priority, 
+            status, 
+            sortBy, 
+            direction
+        );
+        return ResponseEntity.ok(filteredAndSortedTickets);
     }
 }

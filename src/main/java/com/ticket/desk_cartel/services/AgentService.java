@@ -2,6 +2,7 @@ package com.ticket.desk_cartel.services;
 
 import com.ticket.desk_cartel.entities.*;
 import com.ticket.desk_cartel.repositories.AgentRepository;
+import com.ticket.desk_cartel.repositories.NotificationRepository;
 import com.ticket.desk_cartel.repositories.TicketRepository;
 import com.ticket.desk_cartel.repositories.UserRepository;
 import org.slf4j.Logger;
@@ -29,15 +30,17 @@ public class AgentService {
     private final AgentRepository agentRepository;
     private final UserRepository userRepository;
     private final TicketRepository ticketRepository;
+    private final NotificationRepository notificationRepository;
     
     @Autowired
     public AgentService(
             AgentRepository agentRepository,
             UserRepository userRepository,
-            TicketRepository ticketRepository) {
+            TicketRepository ticketRepository, NotificationRepository notificationRepository) {
         this.agentRepository = agentRepository;
         this.userRepository = userRepository;
         this.ticketRepository = ticketRepository;
+        this.notificationRepository = notificationRepository;
     }
     
     /**
@@ -199,6 +202,23 @@ public class AgentService {
         LocalDateTime now = LocalDateTime.now();
         ticket.setStatus(Status.ONGOING);
         ticket.setDate_started(now);
+
+        Notification notification = new Notification();
+        notification.setTitle(ticket.getTitle());
+        notification.setDescription("Ticket has now been started by " + ticket.getAssignedTicket());
+        notification.setTicket(ticket);
+        notification.setAssignedTicket(ticket.getAssignedTicket());
+        notification.setTicketCreator(ticket.getTicketOwner());
+        Optional<Agent> agentIdOpt = getAgentById(ticket.getAssignedTicket().getId());
+
+        Long userId = ticket.getTicketOwner().getId().longValue();
+        Optional<User> userOpt = userRepository.findById(userId);
+        User userNotif = userOpt.get();
+        int userNotifCount = userNotif.getNotifCount();
+        userNotif.setNotifCount(userNotifCount + 1);
+        userRepository.save(userNotif);
+
+        notificationRepository.save(notification);
         
         // Calculate expected completion date based on priority time limit
         int hoursLimit = ticket.getPriority().getTimeLimit();
@@ -261,6 +281,30 @@ public class AgentService {
         // Update agent's workload and completed tickets count with performance points
         agent.reduceWorkload(ticket.getPriority().getWeight());
         agent.addCompletedTicketWithPoints(performancePoints);
+
+        Notification notification = new Notification();
+        notification.setTitle(ticket.getTitle());
+        notification.setDescription("Ticket has now been" + ticket.getStatus().toString());
+        notification.setTicket(ticket);
+        notification.setAssignedTicket(ticket.getAssignedTicket());
+        notification.setTicketCreator(ticket.getTicketOwner());
+        Optional<Agent> agentIdOpt = getAgentById(ticket.getAssignedTicket().getId());
+
+        Long id = agentIdOpt.get().getId();
+        Optional<Agent> agentOpt = agentRepository.findById(id);
+        Agent agentNotif = agentOpt.get();
+        int notifCount = agentNotif.getNotifCount();
+        agentNotif.setNotifCount(notifCount++);
+        agentRepository.save(agentNotif);
+
+        Long userId = ticket.getTicketOwner().getId().longValue();
+        Optional<User> userOpt = userRepository.findById(userId);
+        User userNotif = userOpt.get();
+        int userNotifCount = userNotif.getNotifCount();
+        userNotif.setNotifCount(userNotifCount + 1);
+        userRepository.save(userNotif);
+
+        notificationRepository.save(notification);
         
         // Save changes
         agentRepository.save(agent);
@@ -374,7 +418,11 @@ public class AgentService {
      * @return the agent or empty if not found
      */
     public Optional<Agent> findAgentByUserId(Long userId) {
-        return agentRepository.findByUserId(userId);
+        Optional<Agent> agent = agentRepository.findByUserId(userId);
+        if (agent.isEmpty()) {
+            System.out.println("No agent found for userId: " + userId);
+        }
+        return agent;
     }
     
     /**

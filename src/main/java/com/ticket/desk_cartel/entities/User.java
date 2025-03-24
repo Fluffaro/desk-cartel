@@ -32,6 +32,17 @@ public class User {
     @Column(unique = true, nullable = false)
     private String email;
 
+    @Column
+    private int notifCount;
+
+    public int getNotifCount() {
+        return notifCount;
+    }
+
+    public void setNotifCount(int notifCount) {
+        this.notifCount = notifCount;
+    }
+
     private String fullName;
 
     // Use LocalDate for date of birth.
@@ -49,7 +60,7 @@ public class User {
 
     // Store a single role directly in this column. Default is "USER".
     @Column(nullable = false)
-    private String role = "USER";
+    private String role = "CLIENT";
 
 
     @OneToMany(mappedBy = "author", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

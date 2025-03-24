@@ -18,23 +18,28 @@ public class Notification {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int notificationId;
 
-    @Column
+    @Column(nullable = true)
     private String title;
 
-    @Column
+    @Column(nullable = true)
     private String description;
 
     @ManyToOne
-    @JoinColumn(name = "t_Id")
+    @JoinColumn(name = "t_Id", nullable = true)
     @JsonBackReference("account-sentTransactions")
     private Ticket ticket;
 
 
 
     @ManyToOne
-    @JoinColumn(name = "agentId")
+    @JoinColumn(name = "agentId", nullable = true)
     @JsonBackReference("account-sentTransactions")
     private Agent assignedTicket;
+
+    @ManyToOne
+    @JoinColumn(name = "userId", nullable = true)
+    @JsonBackReference("account-sentTransactions")
+    private User ticketCreator;
 
 
 
