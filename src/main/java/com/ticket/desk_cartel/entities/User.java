@@ -32,6 +32,9 @@ public class User {
     @Column(unique = true, nullable = false)
     private String email;
 
+    @Column
+    private int notifCount;
+
     private String fullName;
 
     // Use LocalDate for date of birth.

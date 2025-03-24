@@ -123,17 +123,7 @@ public class TicketService {
             logger.warn("Could not auto-assign ticket {}. No suitable agent available.", 
                     ticket.getTicketId());
 
-            Notification notification = new Notification();
-            notification.setTitle(title);
-            notification.setDescription(description);
-            notification.setTicket(ticket);
-            
-            // Check if the assigned ticket is null before accessing it
-            // This was causing a NullPointerException since no agent is available
-            notification.setAssignedTicket(null);
-            
-            // Save notification without agent reference
-            notificationRepository.save(notification);
+
             return ticket;
         }
     }
