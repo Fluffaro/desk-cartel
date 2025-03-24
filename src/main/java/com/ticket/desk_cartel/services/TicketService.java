@@ -390,4 +390,160 @@ public class TicketService {
         // Save and return the updated ticket
         return ticketRepository.save(ticket);
     }
+
+    /**
+     * Gets tickets sorted by the specified field and direction.
+     * 
+     * @param sortBy Field to sort by (e.g. "ticketId", "title", "status", "priority", etc.)
+     * @param direction Sort direction ("ASC" or "DESC")
+     * @return A list of tickets sorted according to the parameters
+     */
+    public List<Ticket> getSortedTickets(String sortBy, String direction) {
+        // Define the sort direction
+        org.springframework.data.domain.Sort.Direction sortDirection = 
+            "DESC".equalsIgnoreCase(direction) ? 
+            org.springframework.data.domain.Sort.Direction.DESC : 
+            org.springframework.data.domain.Sort.Direction.ASC;
+            
+        // Handle related entity fields
+        String sortProperty = sortBy;
+        
+        // Map entity relationship fields to their proper path for sorting
+        if ("priority".equals(sortBy)) {
+            sortProperty = "priority.name";
+        } else if ("category".equals(sortBy)) {
+            sortProperty = "category.name";
+        }
+        
+        // Create the Sort object
+        org.springframework.data.domain.Sort sort = 
+            org.springframework.data.domain.Sort.by(sortDirection, sortProperty);
+            
+        // Return the sorted list
+        return ticketRepository.findAll(sort);
+    }
+
+    /**
+     * Filters and sorts tickets based on various criteria.
+     * 
+     * @param category Category filter (optional)
+     * @param priority Priority filter (optional)
+     * @param status Status filter (optional)
+     * @param sortBy Field to sort by (e.g. "ticketId", "title", "status", "priority", etc.)
+     * @param direction Sort direction ("ASC" or "DESC")
+     * @return A list of tickets matching the filters and sorted according to the parameters
+     */
+    public List<Ticket> filterAndSortTickets(Category category, Priority priority, Status status, 
+                                           String sortBy, String direction) {
+        // Get filtered tickets
+        List<Ticket> filteredTickets = filterTickets(category, priority, status);
+        
+        // Define the sort direction
+        org.springframework.data.domain.Sort.Direction sortDirection = 
+            "DESC".equalsIgnoreCase(direction) ? 
+            org.springframework.data.domain.Sort.Direction.DESC : 
+            org.springframework.data.domain.Sort.Direction.ASC;
+            
+        // Handle related entity fields
+        String sortProperty = sortBy;
+        
+        // Map entity relationship fields to their proper path for sorting
+        if ("priority".equals(sortBy)) {
+            // Custom sorting for priority field
+            if (sortDirection == org.springframework.data.domain.Sort.Direction.ASC) {
+                filteredTickets.sort((t1, t2) -> {
+                    if (t1.getPriority() == null) return -1;
+                    if (t2.getPriority() == null) return 1;
+                    return t1.getPriority().getName().compareTo(t2.getPriority().getName());
+                });
+            } else {
+                filteredTickets.sort((t1, t2) -> {
+                    if (t1.getPriority() == null) return 1;
+                    if (t2.getPriority() == null) return -1;
+                    return t2.getPriority().getName().compareTo(t1.getPriority().getName());
+                });
+            }
+            return filteredTickets;
+        } else if ("category".equals(sortBy)) {
+            // Custom sorting for category field
+            if (sortDirection == org.springframework.data.domain.Sort.Direction.ASC) {
+                filteredTickets.sort((t1, t2) -> {
+                    if (t1.getCategory() == null) return -1;
+                    if (t2.getCategory() == null) return 1;
+                    return t1.getCategory().getName().compareTo(t2.getCategory().getName());
+                });
+            } else {
+                filteredTickets.sort((t1, t2) -> {
+                    if (t1.getCategory() == null) return 1;
+                    if (t2.getCategory() == null) return -1;
+                    return t2.getCategory().getName().compareTo(t1.getCategory().getName());
+                });
+            }
+            return filteredTickets;
+        } else if ("status".equals(sortBy)) {
+            // Custom sorting for status field
+            if (sortDirection == org.springframework.data.domain.Sort.Direction.ASC) {
+                filteredTickets.sort((t1, t2) -> {
+                    if (t1.getStatus() == null) return -1;
+                    if (t2.getStatus() == null) return 1;
+                    return t1.getStatus().name().compareTo(t2.getStatus().name());
+                });
+            } else {
+                filteredTickets.sort((t1, t2) -> {
+                    if (t1.getStatus() == null) return 1;
+                    if (t2.getStatus() == null) return -1;
+                    return t2.getStatus().name().compareTo(t1.getStatus().name());
+                });
+            }
+            return filteredTickets;
+        } else if ("date_started".equals(sortBy)) {
+            // Custom sorting for date_started field
+            if (sortDirection == org.springframework.data.domain.Sort.Direction.ASC) {
+                filteredTickets.sort((t1, t2) -> {
+                    if (t1.getDate_started() == null) return -1;
+                    if (t2.getDate_started() == null) return 1;
+                    return t1.getDate_started().compareTo(t2.getDate_started());
+                });
+            } else {
+                filteredTickets.sort((t1, t2) -> {
+                    if (t1.getDate_started() == null) return 1;
+                    if (t2.getDate_started() == null) return -1;
+                    return t2.getDate_started().compareTo(t1.getDate_started());
+                });
+            }
+            return filteredTickets;
+        } else if ("completion_date".equals(sortBy)) {
+            // Custom sorting for completion_date field
+            if (sortDirection == org.springframework.data.domain.Sort.Direction.ASC) {
+                filteredTickets.sort((t1, t2) -> {
+                    if (t1.getCompletion_date() == null) return -1;
+                    if (t2.getCompletion_date() == null) return 1;
+                    return t1.getCompletion_date().compareTo(t2.getCompletion_date());
+                });
+            } else {
+                filteredTickets.sort((t1, t2) -> {
+                    if (t1.getCompletion_date() == null) return 1;
+                    if (t2.getCompletion_date() == null) return -1;
+                    return t2.getCompletion_date().compareTo(t1.getCompletion_date());
+                });
+            }
+            return filteredTickets;
+        } else if ("title".equals(sortBy)) {
+            // Sort by title
+            if (sortDirection == org.springframework.data.domain.Sort.Direction.ASC) {
+                filteredTickets.sort((t1, t2) -> t1.getTitle().compareTo(t2.getTitle()));
+            } else {
+                filteredTickets.sort((t1, t2) -> t2.getTitle().compareTo(t1.getTitle()));
+            }
+            return filteredTickets;
+        } else {
+            // Default sort by ticketId
+            if (sortDirection == org.springframework.data.domain.Sort.Direction.ASC) {
+                filteredTickets.sort((t1, t2) -> t1.getTicketId().compareTo(t2.getTicketId()));
+            } else {
+                filteredTickets.sort((t1, t2) -> t2.getTicketId().compareTo(t1.getTicketId()));
+            }
+            return filteredTickets;
+        }
+    }
 }
