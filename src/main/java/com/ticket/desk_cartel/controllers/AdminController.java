@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/admin/users")
+@RequestMapping("${api.admin.base-url}")
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
 
@@ -32,7 +32,7 @@ public class AdminController {
     /**
      * Update user role.
      */
-    @PutMapping("/{id}/role")
+    @PutMapping("${api.admin.updateRole}")
     public ResponseEntity<String> updateUserRole(@PathVariable Long id, @RequestParam String role) {
         userService.updateUserRole(id, role);
         return ResponseEntity.ok("User role updated successfully.");
@@ -41,7 +41,7 @@ public class AdminController {
     /**
      * Get user details by ID
      */
-    @GetMapping("/{id}")
+    @GetMapping("${api.admin.getById}")
     public ResponseEntity<UserDTO> getUserById(@PathVariable Long id) {
         Optional<UserDTO> user = userService.getUserById(id);
         return user.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());

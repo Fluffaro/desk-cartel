@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/api/notifications")
+@RequestMapping("${api.notif.base-url}")
 public class NotificationController {
     private final NotificationService notificationService;
     private final AgentService agentService;
@@ -21,7 +21,7 @@ public class NotificationController {
         this.agentService = agentService;
     }
 
-    @PostMapping("/notifCount/{id}")
+    @PostMapping("${api.notif.notifCountPerId}")
     public ResponseEntity<?> getNotifCount(@PathVariable Long id){
         Optional<Agent> agentOpt = agentRepository.findById(id);
 
@@ -30,17 +30,17 @@ public class NotificationController {
         return ResponseEntity.ok(agentNotif.getNotifCount());
     }
 
-    @PutMapping("/clickedNotification/{id}")
+    @PutMapping("${api.notif.clicked}")
     public void clickedNotification(@PathVariable Long id){
         notificationService.clickedNotification(id);
     }
 
-    @PostMapping("/NotificationCount/{id}")
+    @PostMapping("${api.notif.notifCountByAgent}")
     public ResponseEntity<?> getAgentNotificationCount(@PathVariable Long id){
         return ResponseEntity.ok(notificationService.getAgentNumbersOfNotifications(id));
     }
 
-    @PostMapping("/Notifications/{id}")
+    @PostMapping("${api.notif.byId}")
     public ResponseEntity<?> getAgentAllNotifications(@PathVariable Long id) throws Exception {
         return ResponseEntity.ok(notificationService.getAllAgentNotification(id));
     }
