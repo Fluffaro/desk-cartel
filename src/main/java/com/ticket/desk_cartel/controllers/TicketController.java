@@ -101,14 +101,23 @@ public class TicketController {
      */
     @GetMapping("${api.ticket.filter}")
     public ResponseEntity<List<Ticket>> filterTickets(
-            @RequestParam(required = false) Category category,
-            @RequestParam(required = false) Priority priority,
-            @RequestParam(required = false) Status status
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Long priorityId,
+            @RequestParam(required = false) String statusName
             ) {
+        // Convert IDs to objects
+        Category category = (categoryId != null) ? 
+            categoryRepository.findById(categoryId).orElse(null) : null;
+        
+        Priority priority = (priorityId != null) ?
+            priorityService.getPriorityById(priorityId) : null;
+        
+        Status status = (statusName != null) ?
+            Status.valueOf(statusName) : null;
+        
         List<Ticket> filteredTickets = ticketService.filterTickets(category, priority, status);
         return ResponseEntity.ok(filteredTickets);
     }
-
     /**
      * Create a new ticket. Only accessible to clients, not agents.
      * Only title, description and categoryId are required.

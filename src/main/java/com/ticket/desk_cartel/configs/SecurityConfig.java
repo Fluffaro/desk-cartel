@@ -82,7 +82,9 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(
                 "https://neilv.dev",
-                "https://api.neilv.dev"  // Make sure this is HTTPS
+                "https://api.neilv.dev",  // Make sure this is HTTPS
+                "http://localhost:3000", 
+                "https//localhost:8080"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));

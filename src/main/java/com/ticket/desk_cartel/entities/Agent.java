@@ -48,7 +48,7 @@ public class Agent {
     private LocalDateTime updatedAt = LocalDateTime.now();
 
     @Column
-    private int notifCount;
+    private int notifCount = 0;
 
     public int getNotifCount() {
         return notifCount;

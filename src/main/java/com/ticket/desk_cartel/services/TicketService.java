@@ -37,6 +37,9 @@ public class TicketService {
     @Autowired
     private PriorityService priorityService;
 
+    @Autowired
+    private NotificationService notificationService;
+
     public TicketService(TicketRepository ticketRepository, UserRepository userRepository,
                          JwtUtil jwtUtil, CategoryRepository categoryRepository, NotificationRepository notificationRepository, AgentRepository agentRepository) {
         this.ticketRepository = ticketRepository;
@@ -123,6 +126,8 @@ public class TicketService {
             logger.warn("Could not auto-assign ticket {}. No suitable agent available.", 
                     ticket.getTicketId());
 
+            // Send a notification to the user about no agent being available
+            notificationService.createNoAgentAvailableNotification(ticket);
 
             return ticket;
         }
@@ -388,7 +393,14 @@ public class TicketService {
         ticket.setStatus(Status.COMPLETED);
         
         // Save and return the updated ticket
-        return ticketRepository.save(ticket);
+        Ticket updatedTicket = ticketRepository.save(ticket);
+        
+        // Send notification to the agent about ticket completion
+        if (updatedTicket.getAssignedTicket() != null) {
+            notificationService.createTicketCompletedByUserNotification(updatedTicket);
+        }
+        
+        return updatedTicket;
     }
 
     /**
