@@ -1,11 +1,15 @@
 package com.ticket.desk_cartel.controllers;
 
+import com.ticket.desk_cartel.dto.PriorityDTO;
 import com.ticket.desk_cartel.entities.Agent;
 import com.ticket.desk_cartel.entities.AgentLevel;
+import com.ticket.desk_cartel.entities.Priority;
 import com.ticket.desk_cartel.entities.Ticket;
+import com.ticket.desk_cartel.mappers.PriorityMapper;
 import com.ticket.desk_cartel.repositories.AgentRepository;
 import com.ticket.desk_cartel.services.AgentService;
 import com.ticket.desk_cartel.services.NotificationService;
+import com.ticket.desk_cartel.services.PriorityService;
 import com.ticket.desk_cartel.services.TicketService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -17,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * REST controller for managing agent operations and assignments.
@@ -27,6 +32,8 @@ public class AgentController {
 
     private final AgentService agentService;
     private final TicketService ticketService;
+    private final PriorityService priorityService;
+    private final PriorityMapper priorityMapper;
     @Autowired
     private AgentRepository agentRepository;
 
@@ -34,9 +41,11 @@ public class AgentController {
     private NotificationService notificationService;
 
     @Autowired
-    public AgentController(AgentService agentService, TicketService ticketService) {
+    public AgentController(AgentService agentService, TicketService ticketService, PriorityService priorityService, PriorityMapper priorityMapper) {
         this.agentService = agentService;
         this.ticketService = ticketService;
+        this.priorityMapper = priorityMapper;
+        this.priorityService = priorityService;
     }
 
     /**
@@ -211,14 +220,21 @@ public class AgentController {
         
         if (updatedTicket == null) {
             Map<String, String> error = new HashMap<>();
-            error.put("error", "Could not start ticket. Ensure the ticket is assigned to you and in ASSIGNED status.");
+            error.put("error", "Ticket is already ongoing.");
             return ResponseEntity.badRequest().body(error);
         }
         
         return ResponseEntity.ok(updatedTicket);
     }
 
-
+    @GetMapping("${api.agent.priority}")
+    public ResponseEntity<List<PriorityDTO>> getAllPriorities() {
+        List<Priority> priorities = priorityService.getAllPriorities();
+        List<PriorityDTO> priorityDTOs = priorities.stream()
+                .map(priorityMapper::toDto)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(priorityDTOs);
+    }
 
 
 } 
