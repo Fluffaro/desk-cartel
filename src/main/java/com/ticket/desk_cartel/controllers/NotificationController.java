@@ -7,6 +7,7 @@ import com.ticket.desk_cartel.services.NotificationService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -60,5 +61,42 @@ public class NotificationController {
     public ResponseEntity<?> getUserAllNotifications(@PathVariable Long id) throws Exception {
         return ResponseEntity.ok(notificationService.getAllUserNotification(id));
     }
+
+    @GetMapping("/Notifications/user/{userId}")
+    public ResponseEntity<?> getNotificationsByUserId(@PathVariable Long userId) {
+        try {
+            return ResponseEntity.ok(notificationService.getNotificationsByUserId(userId));
+        } catch (Exception e) {
+            return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/clickedNotification/user/{userId}")
+    public ResponseEntity<?> userClickedNotificationByUserId(@PathVariable Long userId) {
+        Optional<Agent> agentOpt = agentRepository.findByUserId(userId);
+
+        if (agentOpt.isPresent()) {
+            Long agentId = agentOpt.get().getId();
+            notificationService.clickedAgentNotification(agentId);
+            return ResponseEntity.ok().body(Map.of("message", "Notification count reset for agent with userId: " + userId));
+        } else {
+            return ResponseEntity.status(404).body(Map.of("error", "Agent not found for the given userId."));
+        }
+    }
+
+    @GetMapping("/NotificationCount/user/{userId}")
+    public ResponseEntity<?> getNotificationCountByUserId(@PathVariable Long userId) {
+        Optional<Agent> agentOpt = agentRepository.findByUserId(userId);
+
+        if (agentOpt.isPresent()) {
+            Long agentId = agentOpt.get().getId();
+            int notifCount = notificationService.getAgentNumbersOfNotifications(agentId);
+            return ResponseEntity.ok(Map.of("notifCount", notifCount));
+        } else {
+            return ResponseEntity.status(404).body(Map.of("error", "Agent not found for the given userId."));
+        }
+    }
+
+
 
 }
