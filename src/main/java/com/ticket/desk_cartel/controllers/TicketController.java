@@ -345,7 +345,7 @@ public class TicketController {
      * @param sortDTO Sorting parameters (field to sort by and direction)
      * @return List of sorted tickets
      */
-    @GetMapping("/sort")
+    @PostMapping("/sort")
     @Operation(
         summary = "Get sorted tickets",
         description = "Returns tickets sorted by the specified field and direction"
