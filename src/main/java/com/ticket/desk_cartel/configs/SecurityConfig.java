@@ -49,6 +49,17 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui.html").permitAll()
                         .requestMatchers("/swagger-ui/**").permitAll()
                         .requestMatchers("/v3/api-docs/**").permitAll()
+                        .requestMatchers("/ws-chat", "/ws-chat-sockjs/**").permitAll()
+                        .requestMatchers("/api/chat/test-token/**").permitAll()
+                        
+                        // Public category endpoint for ticket creation
+                        //.requestMatchers("/api/categories/active").permitAll()
+                        
+                        // Admin-only endpoints
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        
+                        // WebSocket and chat endpoints
                         .requestMatchers("/ws-chat/**").permitAll()
                         .requestMatchers("/ws-chat-sockjs/**").permitAll()
                         .requestMatchers("/api/chat/public-messages/**").permitAll()
