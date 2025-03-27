@@ -27,12 +27,12 @@ public class Ticket {
 
     @ManyToOne
     @JoinColumn(name = "clientId")
-    @JsonBackReference("account-sentTransactions")
+    @JsonManagedReference
     private User ticketOwner;
 
     @ManyToOne
     @JoinColumn(name = "agentId")
-    @JsonBackReference("account-sentTransactions")
+    @JsonManagedReference
     private Agent assignedTicket;
 
     @Column
