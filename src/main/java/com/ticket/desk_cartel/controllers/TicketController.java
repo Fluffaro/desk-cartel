@@ -7,6 +7,7 @@ import com.ticket.desk_cartel.services.AgentService;
 import com.ticket.desk_cartel.services.TicketService;
 import com.ticket.desk_cartel.services.PriorityService;
 import com.ticket.desk_cartel.repositories.CategoryRepository;
+import com.ticket.desk_cartel.services.VerificationTokenService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -32,7 +33,7 @@ public class TicketController {
     private final CategoryRepository categoryRepository;
 
     @Autowired
-    public TicketController(TicketService ticketService, AgentService agentService, PriorityService priorityService, CategoryRepository categoryRepository) {
+    public TicketController(TicketService ticketService,VerificationTokenService verificationTokenService,AgentService agentService, PriorityService priorityService, CategoryRepository categoryRepository) {
         this.ticketService = ticketService;
         this.agentService = agentService;
         this.priorityService = priorityService;
@@ -73,6 +74,7 @@ public class TicketController {
     @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
     public ResponseEntity<List<Ticket>> getTicketsByAgent(@PathVariable Long assignedAgent) {
         List<Ticket> agentTickets = ticketService.getTicketsByAgent(assignedAgent);
+
         return ResponseEntity.ok(agentTickets);
     }
 
@@ -94,9 +96,9 @@ public class TicketController {
     /**
      * Filter tickets based on various criteria.
      * 
-     * @param category Category filter (optional)
-     * @param priority Priority filter (optional)
-     * @param status Status filter (optional)
+     * @param categoryId Category filter (optional)
+     * @param priorityId Priority filter (optional)
+     * @param statusName Status filter (optional)
      * @return List of matching tickets
      */
     @GetMapping("${api.ticket.filter}")
@@ -182,7 +184,7 @@ public class TicketController {
         
         // Set status to ASSIGNED initially (will be auto-assigned to agent if possible)
         Status status = ticketDTO.getStatus() != null ? ticketDTO.getStatus() : Status.ASSIGNED;
-        
+
         return ResponseEntity.ok(ticketService.createTicket(
                 userId,
                 ticketDTO.getTitle(),
@@ -226,7 +228,7 @@ public class TicketController {
         if (updatedTicket == null) {
             return ResponseEntity.badRequest().body(null);
         }
-        
+
         return ResponseEntity.ok(updatedTicket);
     }
 
@@ -253,7 +255,6 @@ public class TicketController {
             error.put("error", "Could not assign ticket to agent.");
             return ResponseEntity.badRequest().body(error);
         }
-        
         return ResponseEntity.ok(updatedTicket);
     }
 
@@ -320,7 +321,7 @@ public class TicketController {
         response.put("ticket", updatedTicket);
         response.put("message", "Ticket #" + ticketId + " has been marked as completed by " + 
                      updatedTicket.getTicketOwner().getUsername() + ". Thank you for your feedback!");
-        
+
         return ResponseEntity.ok(response);
     }
 

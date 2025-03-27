@@ -27,6 +27,7 @@ public class TicketService {
     private final CategoryRepository categoryRepository;
     private final NotificationRepository notificationRepository;
     private final AgentRepository agentRepository;
+    private final VerificationTokenService verificationTokenService;
 
     @Autowired
     private GeminiAIService geminiAIService;
@@ -41,13 +42,14 @@ public class TicketService {
     private NotificationService notificationService;
 
     public TicketService(TicketRepository ticketRepository, UserRepository userRepository,
-                         JwtUtil jwtUtil, CategoryRepository categoryRepository, NotificationRepository notificationRepository, AgentRepository agentRepository) {
+                         JwtUtil jwtUtil,VerificationTokenService verificationTokenService, CategoryRepository categoryRepository, NotificationRepository notificationRepository, AgentRepository agentRepository) {
         this.ticketRepository = ticketRepository;
         this.userRepository = userRepository;
         this.jwtUtil = jwtUtil;
         this.categoryRepository = categoryRepository;
         this.notificationRepository = notificationRepository;
         this.agentRepository = agentRepository;
+        this.verificationTokenService = verificationTokenService;
     }
 
     /**
@@ -108,8 +110,16 @@ public class TicketService {
             logger.info("Auto-classified ticket priority: {}", suggestedPriority.getName());
         }
 
+
+
         // Save the ticket first
         ticket = ticketRepository.save(ticket);
+
+        String emailSubject = "Ticket Notification";
+        String emailText = "Ticket has been created. Please check your dashboard for more details.";
+        String clientEmail = ticket.getTicketOwner().getEmail();
+        // Call the sendEmail method
+        verificationTokenService.sendEmail(clientEmail, emailSubject, emailText);
         
         // Try to auto-assign the ticket to an agent
         Ticket assignedTicket = agentService.assignTicketToAgent(ticket.getTicketId());
@@ -261,6 +271,18 @@ public class TicketService {
             return null;
         }
 
+
+        String emailSubject = "Ticket Notification";
+        String emailText = "Ticket has been updated. Please check your dashboard for more details.";
+        // Assuming you are sending the email to the agent's associated user email
+        String agentEmail = ticket.getAssignedTicket().getUser().getEmail();
+        String clientEmail = ticket.getTicketOwner().getEmail();
+        // Call the sendEmail method
+        verificationTokenService.sendEmail(agentEmail, emailSubject, emailText);
+        verificationTokenService.sendEmail(clientEmail, emailSubject, emailText);
+
+
+
         return ticketRepository.save(ticket);
     }
     
@@ -280,8 +302,9 @@ public class TicketService {
             logger.warn("Non-agent attempted to start ticket {}", ticketId);
             return null;
         }
-        
-        // Use the agent service to start the ticket
+
+
+
         return agentService.startTicket(ticketId, agentId);
     }
     
@@ -329,7 +352,17 @@ public class TicketService {
         
         // Update agent workload
         agent.addWorkload(ticket.getPriority().getWeight());
-        
+
+        String emailSubject = "Ticket Notification";
+        String emailText = "Ticket has been assigned. Please check your dashboard for more details.";
+        // Assuming you are sending the email to the agent's associated user email
+        String agentEmail = ticket.getAssignedTicket().getUser().getEmail();
+        String clientEmail = ticket.getTicketOwner().getEmail();
+        // Call the sendEmail method
+        verificationTokenService.sendEmail(agentEmail, emailSubject, emailText);
+        verificationTokenService.sendEmail(clientEmail, emailSubject, emailText);
+
+
         // Save changes
         return ticketRepository.save(ticket);
     }
@@ -394,6 +427,17 @@ public class TicketService {
         
         // Save and return the updated ticket
         Ticket updatedTicket = ticketRepository.save(ticket);
+
+        String emailSubject = "Ticket Notification";
+        String emailText = "Ticket has been completed. Please check your dashboard for more details.";
+        // Assuming you are sending the email to the agent's associated user email
+        String agentEmail = updatedTicket.getAssignedTicket().getUser().getEmail();
+        String clientEmail = updatedTicket.getTicketOwner().getEmail();
+        // Call the sendEmail method
+        verificationTokenService.sendEmail(agentEmail, emailSubject, emailText);
+        verificationTokenService.sendEmail(clientEmail, emailSubject, emailText);
+
+
         
         // Send notification to the agent about ticket completion
         if (updatedTicket.getAssignedTicket() != null) {
