@@ -33,7 +33,7 @@ public class CommentService {
         Optional<Ticket> findTicket = ticketRepository.findById(ticketId);
         Optional<User> findUser = userRepository.findById(userId);
 
-        if(findTicket.isEmpty() || findUser.isEmpty()) {
+        if (findTicket.isEmpty() || findUser.isEmpty()) {
             throw new Exception("Ticket or User does not exist.");
         }
 
@@ -46,10 +46,10 @@ public class CommentService {
         comment.setText(text);
 
 
-        if(replyToCommentId != null){
+        if (replyToCommentId != null) {
             Optional<Comment> findReplyComment = commentRepository.findById(replyToCommentId);
 
-            if(findReplyComment.isEmpty()) {
+            if (findReplyComment.isEmpty()) {
                 throw new Exception("Comment to reply is missing!");
             }
 
@@ -62,10 +62,10 @@ public class CommentService {
         return commentRepository.save(comment);
     }
 
-    public List<Comment> getCommentsByTicketId(Long ticketId) throws Exception{
+    public List<Comment> getCommentsByTicketId(Long ticketId) throws Exception {
         Optional<Ticket> findTicket = ticketRepository.findById(ticketId);
 
-        if(findTicket.isEmpty()){
+        if (findTicket.isEmpty()) {
             throw new Exception("Ticket do not exist");
         }
         Ticket ticket = findTicket.get();
@@ -75,7 +75,7 @@ public class CommentService {
     public Comment editComment(Long commentId, String text) throws Exception {
         Optional<Comment> findComment = commentRepository.findById(commentId);
 
-        if(findComment.isEmpty()) {
+        if (findComment.isEmpty()) {
             throw new Exception("Comment does not exist");
         }
 
