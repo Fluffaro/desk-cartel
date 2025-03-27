@@ -57,7 +57,7 @@ public class VerificationTokenService {
     /**
      * Sends an email with a given subject and message.
      */
-    private void sendEmail(String to, String subject, String text) {
+    public void sendEmail(String to, String subject, String text) {
         try {
             SimpleMailMessage message = new SimpleMailMessage();
             message.setTo(to);

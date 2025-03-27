@@ -31,6 +31,7 @@ public class AgentService {
     private final UserRepository userRepository;
     private final TicketRepository ticketRepository;
     private final NotificationRepository notificationRepository;
+    private final VerificationTokenService verificationTokenService;
     
     @Autowired
     private NotificationService notificationService;
@@ -39,11 +40,13 @@ public class AgentService {
     public AgentService(
             AgentRepository agentRepository,
             UserRepository userRepository,
-            TicketRepository ticketRepository, NotificationRepository notificationRepository) {
+            TicketRepository ticketRepository, NotificationRepository notificationRepository,
+            VerificationTokenService verificationTokenService) {
         this.agentRepository = agentRepository;
         this.userRepository = userRepository;
         this.ticketRepository = ticketRepository;
         this.notificationRepository = notificationRepository;
+        this.verificationTokenService = verificationTokenService;
     }
     
     /**
@@ -168,7 +171,15 @@ public class AgentService {
         // Save changes
         agentRepository.save(agent);
         Ticket updatedTicket = ticketRepository.save(ticket);
-        
+
+
+        String emailSubject = "Ticket Notification";
+        String emailText = "A new ticket has been assigned to you. Please check your dashboard for more details.";
+        // Assuming you are sending the email to the agent's associated user email
+        String agentEmail = ticket.getAssignedTicket().getUser().getEmail();
+        // Call the sendEmail method
+        verificationTokenService.sendEmail(agentEmail, emailSubject, emailText);
+
         // Create notification for the agent about the new assignment
         notificationService.createTicketAssignedNotification(updatedTicket);
         
@@ -190,7 +201,7 @@ public class AgentService {
             logger.warn("Cannot start non-existent ticket: {}", ticketId);
             return null;
         }
-        
+
         Ticket ticket = ticketOpt.get();
         
         // Verify the ticket is assigned to this agent
@@ -220,7 +231,16 @@ public class AgentService {
         
         // Save the ticket
         Ticket updatedTicket = ticketRepository.save(ticket);
-        
+
+        String emailSubject = "Ticket Notification";
+        String emailText = "Ticket has been assigned. Please check your dashboard for more details.";
+        // Assuming you are sending the email to the agent's associated user email
+        String agentEmail = ticket.getAssignedTicket().getUser().getEmail();
+        String clientEmail = ticket.getTicketOwner().getEmail();
+        // Call the sendEmail method
+        verificationTokenService.sendEmail(agentEmail, emailSubject, emailText);
+        verificationTokenService.sendEmail(clientEmail, emailSubject, emailText);
+
         // Create notification for the user that work has started
         notificationService.createTicketStartedNotification(updatedTicket);
         
