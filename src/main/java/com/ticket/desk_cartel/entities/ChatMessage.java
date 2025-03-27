@@ -30,6 +30,12 @@ public class ChatMessage {
 
     @Column(nullable = false, updatable = false) // Prevent updates to timestamp
     private LocalDateTime timestamp;
+    
+    @Column(name = "ticket_id")
+    private String ticketId; // To associate messages with specific tickets
+    
+    @Column(name = "client_message_id")
+    private String clientMessageId; // For deduplication with the frontend
 
     @PrePersist
     protected void onCreate() {
