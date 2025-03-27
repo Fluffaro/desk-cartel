@@ -1,5 +1,3 @@
-package com.ticket.desk_cartel;
-
 import com.ticket.desk_cartel.dto.ChatMessageDTO;
 import com.ticket.desk_cartel.entities.ChatMessage;
 import com.ticket.desk_cartel.entities.User;

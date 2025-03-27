@@ -1,10 +1,8 @@
-package com.ticket.desk_cartel;
-
 import com.ticket.desk_cartel.controllers.AuthController;
 import com.ticket.desk_cartel.dto.RegisterRequestDTO;
 import com.ticket.desk_cartel.entities.User;
-import com.ticket.desk_cartel.services.AuthService;
 import com.ticket.desk_cartel.repositories.UserRepository;
+import com.ticket.desk_cartel.services.AuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
