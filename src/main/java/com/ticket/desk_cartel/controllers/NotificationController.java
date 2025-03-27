@@ -37,9 +37,9 @@ public class NotificationController {
         notificationService.clickedAgentNotification(id);
     }
 
-    @PutMapping("/clickedNotification/{id}")
-    public void userClickedNotification(@PathVariable Long id){
-        notificationService.clickedUserNotification(id);
+    @PutMapping("/clickedNotification/client/{userId}")
+    public void userClickedNotification(@PathVariable Long userId){
+        notificationService.clickedUserNotification(userId);
     }
 
     @GetMapping("/NotificationCount")
@@ -52,17 +52,17 @@ public class NotificationController {
         return ResponseEntity.ok(notificationService.getAllAgentNotification(id));
     }
 
-    @GetMapping("/NotificationCount/{id}")
-    public ResponseEntity<?> getUserNotificationCount(@PathVariable Long id){
-        return ResponseEntity.ok(notificationService.getUserNumbersOfNotifications(id));
+    @GetMapping("/NotificationCount/client/{userId}")
+    public ResponseEntity<?> getUserNotificationCount(@PathVariable Long userId){
+        return ResponseEntity.ok(notificationService.getUserNumbersOfNotifications(userId));
     }
 
-    @GetMapping("/Notifications/{id}")
-    public ResponseEntity<?> getUserAllNotifications(@PathVariable Long id) throws Exception {
-        return ResponseEntity.ok(notificationService.getAllUserNotification(id));
+    @GetMapping("/Notifications/client/{userId}")
+    public ResponseEntity<?> getUserAllNotifications(@PathVariable Long userId) throws Exception {
+        return ResponseEntity.ok(notificationService.getAllUserNotification(userId));
     }
 
-    @GetMapping("/Notifications/user/{userId}")
+    @GetMapping("/Notifications/agent/{userId}")
     public ResponseEntity<?> getNotificationsByUserId(@PathVariable Long userId) {
         try {
             return ResponseEntity.ok(notificationService.getNotificationsByUserId(userId));
@@ -71,7 +71,7 @@ public class NotificationController {
         }
     }
 
-    @PutMapping("/clickedNotification/user/{userId}")
+    @PutMapping("/clickedNotification/agent/{userId}")
     public ResponseEntity<?> userClickedNotificationByUserId(@PathVariable Long userId) {
         Optional<Agent> agentOpt = agentRepository.findByUserId(userId);
 
@@ -84,7 +84,7 @@ public class NotificationController {
         }
     }
 
-    @GetMapping("/NotificationCount/user/{userId}")
+    @GetMapping("/NotificationCount/agent/{userId}")
     public ResponseEntity<?> getNotificationCountByUserId(@PathVariable Long userId) {
         Optional<Agent> agentOpt = agentRepository.findByUserId(userId);
 
