@@ -57,7 +57,7 @@ public class NotificationController {
 
     @PostMapping("/Notifications/{id}")
     public ResponseEntity<?> getUserAllNotifications(@PathVariable Long id) throws Exception {
-        return ResponseEntity.ok(notificationService.getAllAgentNotification(id));
+        return ResponseEntity.ok(notificationService.getAllUserNotification(id));
     }
 
 }

@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
-    Optional<Notification> findByAssignedTicket_Id(Long assignedAgent);
+    List<Notification> findByAssignedTicket_Id(Long assignedAgent);
 
-    Optional<Notification> findByTicketCreator_Id(Long userId);
+    List<Notification> findByTicketCreator_Id(Long userId);
 }

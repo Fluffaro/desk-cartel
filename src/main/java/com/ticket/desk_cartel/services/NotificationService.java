@@ -88,13 +88,12 @@ public class NotificationService {
      * @throws Exception if no notifications found
      */
     public List<Notification> getAllAgentNotification(Long id) throws Exception {
-        Optional<Notification> notificationOpt = notificationRepository.findByAssignedTicket_Id(id);
-        if (notificationOpt.isEmpty()) {
+        List<Notification> notification = notificationRepository.findByAssignedTicket_Id(id);
+        if (notification.isEmpty()) {
             throw new Exception("Notification Empty");
         }
-        Notification notification = notificationOpt.get();
 
-        return List.of(notification);
+        return notification;
     }
 
     /**
@@ -105,13 +104,12 @@ public class NotificationService {
      * @throws Exception if no notifications found
      */
     public List<Notification> getAllUserNotification(Long id) throws Exception {
-        Optional<Notification> notificationOpt = notificationRepository.findByTicketCreator_Id(id);
-        if (notificationOpt.isEmpty()) {
+        List<Notification> notification = notificationRepository.findByTicketCreator_Id(id);
+        if (notification.isEmpty()) {
             throw new Exception("Notification Empty");
         }
-        Notification notification = notificationOpt.get();
 
-        return List.of(notification);
+        return notification;
     }
     
     /**
