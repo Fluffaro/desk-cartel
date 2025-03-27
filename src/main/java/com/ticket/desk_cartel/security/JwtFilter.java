@@ -61,9 +61,7 @@
             boolean isExcluded = excludedPaths.stream()
                     .anyMatch(path -> requestURI.startsWith(path));
             logger.debug("Is Excluded? {}", isExcluded);
-
-
-
+            
             if (isExcluded) {
                 logger.debug("Skipping JWT filter for WebSocket path: {}", requestURI);
                 filterChain.doFilter(request, response);

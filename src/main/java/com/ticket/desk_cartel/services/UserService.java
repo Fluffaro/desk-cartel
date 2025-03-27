@@ -1,6 +1,9 @@
 package com.ticket.desk_cartel.services;
 
+import com.ticket.desk_cartel.dto.UserDTO;
 import com.ticket.desk_cartel.entities.User;
+import com.ticket.desk_cartel.repositories.AgentRepository;
+import com.ticket.desk_cartel.repositories.TicketRepository;
 import com.ticket.desk_cartel.repositories.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,8 +11,13 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import com.ticket.desk_cartel.entities.Agent;
+import com.ticket.desk_cartel.entities.AgentLevel;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Service for managing user-related operations, focusing on user management
@@ -22,14 +30,18 @@ public class UserService implements UserDetailsService {
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
 
     private final UserRepository userRepository;
+    private final AgentRepository agentRepository;
+    private final TicketRepository ticketRepository;
 
     /**
      * Constructor-based dependency injection.
      *
      * @param userRepository Repository for user data access.
      */
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, AgentRepository agentRepository, TicketRepository ticketRepository) {
         this.userRepository = userRepository;
+        this.agentRepository = agentRepository;
+        this.ticketRepository = ticketRepository;
     }
 
     /**
@@ -106,4 +118,90 @@ public class UserService implements UserDetailsService {
                 .roles(user.getRole())
                 .build();
     }
+
+    public List<UserDTO> getAllUsers() {
+        return userRepository.findAll()
+                .stream()
+                .map(user -> new UserDTO(
+                        user.getId(),
+                        user.getUsername(),
+                        user.getEmail(),
+                        user.getFullName(),
+                        user.getDateOfBirth(),
+                        user.getPhoneNumber(),
+                        user.getAddress(),
+                        user.getProfilePictureUrl(),
+                        user.getRole(),
+                        user.getCreatedAt()
+                ))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Update the role of a user.
+     */
+    @Transactional
+    public void updateUserRole(Long userId, String role) {
+        Optional<User> userOpt = userRepository.findById(userId);
+        if (userOpt.isEmpty()) {
+            throw new RuntimeException("User not found");
+        }
+
+        User user = userOpt.get();
+
+        if ("AGENT".equalsIgnoreCase(role)) {
+            Optional<Agent> existingAgentOpt = agentRepository.findByUser(user);
+
+            if (existingAgentOpt.isPresent()) {
+                Agent existingAgent = existingAgentOpt.get();
+
+                if (existingAgent.isActive()) {
+                    throw new RuntimeException("User is already an active agent.");
+                }
+
+                // Reactivate the agent if they were previously inactive
+                existingAgent.setActive(true);
+                agentRepository.save(existingAgent);
+            } else {
+                // Assign as a new agent
+                Agent newAgent = new Agent(user, AgentLevel.JUNIOR);
+                newAgent.setActive(true);
+                agentRepository.save(newAgent);
+            }
+        } else {
+            // If demoting/removing an agent, ensure they have no ongoing tickets
+            Optional<Agent> agentOpt = agentRepository.findByUser(user);
+            if (agentOpt.isPresent()) {
+                Agent agent = agentOpt.get();
+                int ongoingTickets = ticketRepository.countOngoingTickets(agent);
+
+                if (ongoingTickets > 0) {
+                    throw new RuntimeException("Cannot remove agent role. The agent has ongoing tickets.");
+                }
+
+                agent.setActive(false);
+                agentRepository.save(agent);
+            }
+        }
+
+        user.setRole(role);
+        userRepository.save(user);
+    }
+
+    public Optional<UserDTO> getUserById(Long id) {
+        return userRepository.findById(id)
+                .map(user -> new UserDTO(
+                        user.getId(),
+                        user.getUsername(),
+                        user.getEmail(),
+                        user.getFullName(),
+                        user.getDateOfBirth(),
+                        user.getPhoneNumber(),
+                        user.getAddress(),
+                        user.getProfilePictureUrl(),
+                        user.getRole(),
+                        user.getCreatedAt()
+                ));
+    }
+
 }

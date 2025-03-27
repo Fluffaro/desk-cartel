@@ -24,8 +24,28 @@ public class Category {
     @Column
     private String description;
 
-    public Category(String name, String description) {
+    @Column
+    private int points;
+
+    @Column
+    private boolean isActive;
+
+
+
+
+    public boolean getIsActive() {
+        return isActive;
+    }
+
+    public void setActive(boolean active) {
+        isActive = active;
+    }
+
+    public Category(String name, String description, int points, boolean isActive) {
         this.name = name;
         this.description = description;
+        this.points = points;
+        this.isActive = isActive;
     }
+
 }

@@ -49,8 +49,6 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui.html").permitAll()
                         .requestMatchers("/swagger-ui/**").permitAll()
                         .requestMatchers("/v3/api-docs/**").permitAll()
-                        .requestMatchers("/ws-chat", "/ws-chat-sockjs/**").permitAll()
-                        .requestMatchers("/api/chat/test-token/**").permitAll()
                         
                         // Public category endpoint for ticket creation
                         //.requestMatchers("/api/categories/active").permitAll()
@@ -82,7 +80,12 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:5500"));
+        config.setAllowedOrigins(List.of(
+                "https://neilv.dev",
+                "https://api.neilv.dev",  // Make sure this is HTTPS
+                "http://localhost:3000", 
+                "https//localhost:8080"
+        ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         config.setAllowCredentials(true);

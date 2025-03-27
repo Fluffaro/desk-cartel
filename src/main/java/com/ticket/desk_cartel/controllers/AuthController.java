@@ -18,7 +18,7 @@ import java.util.Optional;
  * Follows the Single Responsibility Principle by focusing only on authentication concerns.
  */
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("${api.auth.base-url}")
 public class AuthController {
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
 
@@ -36,7 +36,7 @@ public class AuthController {
      * @param registerRequest DTO containing registration details.
      * @return ResponseEntity indicating success or error details.
      */
-    @PostMapping("/register")
+    @PostMapping("${api.auth.register}")
     public ResponseEntity<?> register(@RequestBody RegisterRequestDTO registerRequest) {
         try {
             // Basic input validation
@@ -71,7 +71,7 @@ public class AuthController {
      * @param token Verification token.
      * @return ResponseEntity indicating the result of verification.
      */
-    @GetMapping("/verify")
+    @GetMapping("${api.auth.verify}")
     public ResponseEntity<?> verifyAccount(@RequestParam String token) {
         Optional<User> userOptional = authService.verifyToken(token);
         if (userOptional.isPresent()) {
@@ -92,7 +92,7 @@ public class AuthController {
      * @param loginRequest DTO containing login credentials.
      * @return ResponseEntity with JWT token or error message.
      */
-    @PostMapping("/login")
+    @PostMapping("${api.auth.login}")
     public ResponseEntity<?> login(@RequestBody LoginRequestDTO loginRequest) {
         try {
             String token = authService.login(loginRequest.getUsername(), loginRequest.getPassword());

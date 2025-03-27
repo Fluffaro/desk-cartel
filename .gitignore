@@ -75,3 +75,6 @@ Thumbs.db
 
 # If you generate coverage reports in a folder named coverage/
 coverage/
+*.tmp
+app.log.2025-03-18.0.gz
+app.log.2025-03-19.0.gz

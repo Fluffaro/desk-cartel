@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+
 /**
  * Controller for managing user-related operations.
  * <p>
@@ -19,7 +20,7 @@ import java.util.Optional;
  * </p>
  */
 @RestController
-@RequestMapping("/users")
+@RequestMapping("${api.user.base-url}")
 public class UserController {
 
     // Logger for logging important events and errors.
@@ -37,7 +38,7 @@ public class UserController {
      * @param principal Security principal containing the username.
      * @return ResponseEntity with user details or an error message.
      */
-    @GetMapping("/me")
+    @GetMapping("${api.user.me}")
     public ResponseEntity<?> getCurrentUser(Principal principal) {
         if (principal == null) {
             logger.warn("Unauthorized access attempt to /me endpoint.");
@@ -49,6 +50,8 @@ public class UserController {
             User user = userOptional.get();
             Map<String, Object> userInfo = new HashMap<>();
             userInfo.put("fullName", user.getFullName());
+            userInfo.put("Id", user.getId());
+            userInfo.put("role", user.getRole());
             userInfo.put("email", user.getEmail());
             logger.info("Retrieved user info for user: {}", user.getUsername());
             return ResponseEntity.ok(userInfo);
