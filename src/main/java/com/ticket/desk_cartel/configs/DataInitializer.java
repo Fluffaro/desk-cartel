@@ -35,16 +35,19 @@ public class DataInitializer implements CommandLineRunner {
     
     @Override
     public void run(String... args) {
-        createPublicChatUser();
+        createSystemUsers();
         initializePriorityLevels();
     }
     
     /**
-     * Creates a special system user for public chat messages if it doesn't exist.
+     * Creates necessary system users if they don't exist.
      */
-    private void createPublicChatUser() {
+    private void createSystemUsers() {
+        logger.info("🔧 Checking system users in database");
+        
+        // Create PUBLIC_CHAT user
         if (!userRepository.existsByUsername("PUBLIC_CHAT")) {
-            logger.info("Creating PUBLIC_CHAT system user for public messages");
+            logger.info("🔧 Creating PUBLIC_CHAT system user for public messages");
             
             User publicChatUser = new User();
             publicChatUser.setUsername("PUBLIC_CHAT");
@@ -57,9 +60,29 @@ public class DataInitializer implements CommandLineRunner {
             publicChatUser.setVerified(true);
             
             userRepository.save(publicChatUser);
-            logger.info("PUBLIC_CHAT system user created successfully");
+            logger.info("✅ PUBLIC_CHAT system user created successfully");
         } else {
-            logger.info("PUBLIC_CHAT system user already exists");
+            logger.info("✅ PUBLIC_CHAT system user already exists");
+        }
+        
+        // Create SYSTEM user
+        if (!userRepository.existsByUsername("SYSTEM")) {
+            logger.info("🔧 Creating SYSTEM user for system notifications");
+            
+            User systemUser = new User();
+            systemUser.setUsername("SYSTEM");
+            systemUser.setEmail("system@system.local");
+            systemUser.setFullName("System Notifications");
+            // Generate a random password as this user will never login
+            systemUser.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+            systemUser.setRole("SYSTEM");
+            systemUser.setActive(true);
+            systemUser.setVerified(true);
+            
+            userRepository.save(systemUser);
+            logger.info("✅ SYSTEM user created successfully");
+        } else {
+            logger.info("✅ SYSTEM user already exists");
         }
     }
     

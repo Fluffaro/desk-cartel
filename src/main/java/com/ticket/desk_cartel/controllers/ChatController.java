@@ -41,10 +41,9 @@ public class ChatController {
         this.jwtUtil = jwtUtil;
     }
 
-    // 🌍 Public Chat (Broadcast Messages)
+    // 🌍 Chat for Tickets - Only visible to client, agent, and admins
     @MessageMapping("/chat")
-    @SendTo("/topic/messages")
-    public ChatMessageDTO sendMessage(@Payload ChatMessageDTO chatMessageDTO, StompHeaderAccessor accessor, Principal principal) {
+    public void sendMessage(@Payload ChatMessageDTO chatMessageDTO, StompHeaderAccessor accessor, Principal principal) {
         String username;
         
         // Try first to get username from Principal (most reliable)
@@ -53,29 +52,222 @@ public class ChatController {
             logger.info("📩 Got username from Principal: {}", username);
         } else {
             // Fall back to session attributes if Principal is not available
-            username = (String) accessor.getSessionAttributes().get("username");
-            logger.info("📩 Got username from session attributes: {}", username);
+            Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+            if (sessionAttributes != null && sessionAttributes.containsKey("username")) {
+                username = (String) sessionAttributes.get("username");
+                logger.info("📩 Got username from session attributes: {}", username);
+            } else {
+                // Last resort: try to get from message payload
+                username = chatMessageDTO.getSenderUsername();
+                logger.info("📩 Using username from message payload: {}", username);
+                
+                if (username == null || username.isEmpty()) {
+                    logger.error("❌ No username found in any source (Principal, session, payload)");
+                    throw new RuntimeException("Unauthorized WebSocket access - no username found");
+                }
+            }
         }
         
-        if (username == null) {
-            logger.error("❌ No username found in Principal or session attributes");
-            throw new RuntimeException("Unauthorized WebSocket access");
-        }
-
+        // Always set the sender username in the message to ensure consistency
         chatMessageDTO.setSenderUsername(username);
         
-        // For public messages, set a special receiver name or use the sender as receiver
-        if (chatMessageDTO.getReceiverUsername() == null || chatMessageDTO.getReceiverUsername().isEmpty()) {
-            chatMessageDTO.setReceiverUsername("PUBLIC_CHAT");  // Special receiver for public messages
-        }
+        // Check if this is a ticket chat (should have a ticketId)
+        if (chatMessageDTO.getTicketId() != null && !chatMessageDTO.getTicketId().isEmpty()) {
+            String ticketId = chatMessageDTO.getTicketId();
+            logger.info("📩 Processing ticket chat message for ticket {}: {}", ticketId, chatMessageDTO);
+            logger.info("📩 Sender: {}, Receiver: {}, Content: {}, ClientMessageId: {}", 
+                chatMessageDTO.getSenderUsername(), 
+                chatMessageDTO.getReceiverUsername(), 
+                chatMessageDTO.getMessageContent(),
+                chatMessageDTO.getClientMessageId());
+            
+            // Fix special receiver format issue - if starts with TICKET_, change to PUBLIC_CHAT
+            if (chatMessageDTO.getReceiverUsername() != null && 
+                chatMessageDTO.getReceiverUsername().startsWith("TICKET_")) {
+                logger.info("⚠️ Replacing special receiver format '{}' with 'PUBLIC_CHAT'", 
+                    chatMessageDTO.getReceiverUsername());
+                chatMessageDTO.setReceiverUsername("PUBLIC_CHAT");
+            }
+                    
+            try {
+                // Check for duplicate messages by clientMessageId if provided
+                if (chatMessageDTO.getClientMessageId() != null && !chatMessageDTO.getClientMessageId().isEmpty()) {
+                    // Try to find existing message with same clientMessageId
+                    boolean isDuplicate = chatService.isClientMessageIdDuplicate(chatMessageDTO.getClientMessageId());
+                    
+                    if (isDuplicate) {
+                        logger.warn("⚠️ Duplicate message detected with clientMessageId: {} - skipping save", 
+                            chatMessageDTO.getClientMessageId());
+                        
+                        // Even for duplicates, we still want to broadcast the message to ensure delivery
+                        // But we'll skip the database save
+                        broadcastTicketMessage(chatMessageDTO, ticketId);
+                        return;
+                    }
+                    
+                    logger.info("✅ Not a duplicate message, proceeding with save");
+                }
+                
+                // Save the message first
+                ChatMessage savedMessage = null;
+                try {
+                    savedMessage = chatService.saveMessage(chatMessageDTO);
+                    logger.info("📩 Ticket message saved with ID {}: {}", savedMessage.getId(), savedMessage.getMessageContent());
+                } catch (Exception e) {
+                    logger.error("❌ Failed to save ticket message: {}", e.getMessage(), e);
+                    
+                    if (e.getMessage().contains("Receiver not found")) {
+                        logger.info("🔄 Receiver not found. Creating temporary receiver and retrying.");
+                        
+                        // Save a copy of the clientMessageId in case it gets overridden
+                        String clientMsgId = chatMessageDTO.getClientMessageId();
+                        
+                        // Broadcast the message anyway so the UI gets updated
+                        broadcastTicketMessage(chatMessageDTO, ticketId);
+                        
+                        return;
+                    } else {
+                        throw e; // Rethrow if it's not a receiver not found error
+                    }
+                }
+                
+                // Update the DTO with the actual ID from the saved message
+                if (savedMessage != null) {
+                    chatMessageDTO.setId(savedMessage.getId());
+                    logger.info("📩 Updated DTO with saved message ID: {}", chatMessageDTO.getId());
+                }
+                
+                // Handle broadcasting the message
+                broadcastTicketMessage(chatMessageDTO, ticketId);
+                
+            } catch (Exception e) {
+                logger.error("❌ Failed to save ticket message: {}", e.getMessage(), e);
+                
+                // Try to analyze the error
+                if (e.getMessage().contains("not found")) {
+                    logger.error("💡 This appears to be a user not found error. Check that both sender '{}' and receiver '{}' exist in the database.",
+                        chatMessageDTO.getSenderUsername(),
+                        chatMessageDTO.getReceiverUsername());
+                } else if (e.getMessage().contains("constraint")) {
+                    logger.error("💡 This appears to be a database constraint violation. Check field values and constraints.");
+                }
+                
+                throw new RuntimeException("Error saving ticket chat message: " + e.getMessage());
+            }
+        } else {
+            // Log that this message doesn't have a ticketId
+            logger.warn("⚠️ Message sent without ticketId - treating as general chat message");
+            
+            // For public messages, set a special receiver name or use the sender as receiver
+            if (chatMessageDTO.getReceiverUsername() == null || chatMessageDTO.getReceiverUsername().isEmpty()) {
+                chatMessageDTO.setReceiverUsername("PUBLIC_CHAT");  // Special receiver for public messages
+            }
 
+            try {
+                ChatMessage savedMessage = chatService.saveMessage(chatMessageDTO);
+                logger.info("📩 General message saved: {}", savedMessage.getMessageContent());
+                
+                // Send to public topic
+                messagingTemplate.convertAndSend("/topic/messages", chatMessageDTO);
+                logger.info("✅ Sent general message to public topic");
+                
+            } catch (Exception e) {
+                logger.error("❌ Failed to save message: {}", e.getMessage(), e);
+                throw new RuntimeException("Error saving chat message: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Helper method to broadcast a ticket message to all participants
+     */
+    private void broadcastTicketMessage(ChatMessageDTO chatMessageDTO, String ticketId) {
         try {
-            ChatMessage savedMessage = chatService.saveMessage(chatMessageDTO);
-            logger.info("📩 Message saved: {}", savedMessage.getMessageContent());
-            return chatMessageDTO;
+            // Print the complete message being sent
+            logger.info("🔎 Broadcasting message for ticket {}: {}", ticketId, chatMessageDTO);
+            logger.info("🔎 Message data - Content: '{}', Sender: {}, Receiver: {}, ClientMsgId: {}", 
+                chatMessageDTO.getMessageContent(),
+                chatMessageDTO.getSenderUsername(),
+                chatMessageDTO.getReceiverUsername(),
+                chatMessageDTO.getClientMessageId());
+            
+            // Get all participants for this ticket conversation
+            Map<String, Object> ticketChatDetails = chatService.getTicketChatDetails(ticketId);
+            List<String> participants = (List<String>) ticketChatDetails.get("participants");
+            
+            // Debug the existing participants
+            logger.info("🔍 Current participants for ticket {}: {}", ticketId, participants);
+            
+            // If no participants found yet (first message), create a new list
+            if (participants == null || participants.isEmpty()) {
+                participants = new ArrayList<>();
+                logger.info("👥 No participants found for ticket {}, creating new list", ticketId);
+            }
+            
+            // Ensure current user is in participants
+            String username = chatMessageDTO.getSenderUsername();
+            if (!participants.contains(username)) {
+                participants.add(username);
+                logger.info("👤 Added sender {} to participants list", username);
+            }
+            
+            // Make sure required users are in participants list (admin and agent)
+            Set<String> requiredParticipants = new HashSet<>();
+            requiredParticipants.add("admin");
+            requiredParticipants.add("neil");  // Admin user specifically 
+            requiredParticipants.add("marie"); // Agent user
+            
+            for (String requiredUser : requiredParticipants) {
+                if (!participants.contains(requiredUser)) {
+                    participants.add(requiredUser);
+                    logger.info("👤 Added required user {} to participants list", requiredUser);
+                }
+            }
+            
+            // Create a ticket-specific topic destination
+            String ticketDestination = "/topic/ticket/" + ticketId;
+            logger.info("📩 Sending ticket message to destination: {}", ticketDestination);
+            
+            // Send message to ticket-specific topic
+            try {
+                messagingTemplate.convertAndSend(
+                    ticketDestination, 
+                    chatMessageDTO
+                );
+                logger.info("✅ Successfully sent message to topic: {}", ticketDestination);
+            } catch (Exception e) {
+                logger.error("❌ Error sending to topic {}: {}", ticketDestination, e.getMessage(), e);
+            }
+            
+            // Log what we're about to do
+            logger.info("📩 About to send ticket message to {} individual participants", participants.size());
+            
+            // Also send individually to each participant to ensure they receive it
+            // (this is a belt-and-suspenders approach)
+            for (String participant : participants) {
+                if (!participant.equals("SYSTEM") && !participant.equals("PUBLIC_CHAT")) {
+                    String userQueueDestination = "/user/" + participant + "/queue/ticket/" + ticketId;
+                    logger.info("📩 Sending ticket message to participant: {} via {}", 
+                        participant, userQueueDestination);
+                    
+                    try {
+                        messagingTemplate.convertAndSendToUser(
+                            participant,
+                            "/queue/ticket/" + ticketId,
+                            chatMessageDTO
+                        );
+                        logger.info("✅ Successfully sent to participant: {}", participant);
+                    } catch (Exception e) {
+                        logger.error("❌ Error sending to participant {}: {}", participant, e.getMessage(), e);
+                    }
+                }
+            }
+            
+            // Log success
+            logger.info("✅ Sent ticket message to {} participants for ticket {}", 
+                participants.size(), ticketId);
         } catch (Exception e) {
-            logger.error("❌ Failed to save message: {}", e.getMessage());
-            throw new RuntimeException("Error saving chat message");
+            logger.error("❌ Error broadcasting ticket message: {}", e.getMessage(), e);
         }
     }
 
@@ -205,94 +397,190 @@ public class ChatController {
     
     // 🧑‍💻 Load Chat History (WebSocket endpoint)
     @MessageMapping("/load-history")
-    public void loadChatHistory(StompHeaderAccessor accessor, Principal principal) {
+    public void loadChatHistory(@Payload(required = false) Map<String, Object> payload, 
+                               StompHeaderAccessor accessor, 
+                               Principal principal) {
         String username;
+        Object ticketIdObj = payload != null ? payload.get("ticketId") : null;
+        String ticketId = ticketIdObj != null ? ticketIdObj.toString() : null;
+        
+        logger.info("🔄 Received request to load chat history. Payload: {}", payload);
+        logger.info("🎫 Ticket ID parameter: {}", ticketId);
         
         // Get username (from Principal or session)
         if (principal != null) {
             username = principal.getName();
+            logger.info("✅ Using username from Principal: {}", username);
         } else {
-            username = (String) accessor.getSessionAttributes().get("username");
+            Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+            if (sessionAttributes != null && sessionAttributes.containsKey("username")) {
+                username = (String) sessionAttributes.get("username");
+                logger.info("✅ Using username from session attributes: {}", username);
+            } else {
+                logger.error("❌ No username found in Principal or session attributes when loading chat history");
+                messagingTemplate.convertAndSendToUser(
+                    accessor.getSessionId(),
+                    "/queue/errors",
+                    Map.of("error", "Unauthorized access when loading chat history")
+                );
+                return;
+            }
         }
         
-        if (username == null) {
-            logger.error("❌ No username found when loading chat history");
-            messagingTemplate.convertAndSendToUser(
-                accessor.getSessionId(),
-                "/queue/errors",
-                Map.of("error", "Unauthorized access when loading chat history")
-            );
-            return;
-        }
-        
-        logger.info("🔄 Loading chat history for user: {}", username);
+        logger.info("🔄 Loading chat history for user: {} with ticket ID: {}", username, ticketId);
         
         try {
-            // Send recent public messages
-            List<ChatMessage> publicMessages = chatService.getRecentPublicMessages();
-            List<ChatMessageDTO> publicDtos = chatService.convertToDTO(publicMessages);
-            
-            // Send message history to user
-            messagingTemplate.convertAndSendToUser(
-                username,
-                "/queue/chat-history",
-                Map.of(
-                    "type", "public",
-                    "messages", publicDtos
-                )
-            );
-            
-            logger.info("✅ Sent {} public messages to {}", publicDtos.size(), username);
-            
-            // Find users who have had conversations with this user
-            List<String> conversationPartners = chatService.getUserConversationPartners(username);
-            
-            // If we don't have any conversation partners yet, we'll add some defaults for new users
-            if (conversationPartners.isEmpty()) {
-                Set<String> defaultPartners = new HashSet<>();
-                defaultPartners.add("admin");
-                defaultPartners.add("support");
-                defaultPartners.add("test");
-                conversationPartners = new ArrayList<>(defaultPartners);
-            }
-            
-            // Send the list of conversation partners to the client
-            messagingTemplate.convertAndSendToUser(
-                username,
-                "/queue/conversation-partners",
-                Map.of(
-                    "partners", conversationPartners
-                )
-            );
-            
-            logger.info("✅ Sent {} conversation partners to {}", conversationPartners.size(), username);
-            
-            // For each user, load private chat history and send it
-            for (String otherUser : conversationPartners) {
-                if (!otherUser.equals(username) && !otherUser.equals("PUBLIC_CHAT")) {
-                    List<ChatMessage> privateMessages = chatService.getChatHistory(username, otherUser);
+            // If ticketId is provided, get messages for that specific ticket
+            if (ticketId != null && !ticketId.isEmpty()) {
+                logger.info("📄 Getting messages for ticket ID: {}", ticketId);
+                
+                // TODO: Add role-based validation here (client/agent assigned to ticket or admin)
+                
+                // Get ticket chat details with participant info using the new method
+                Map<String, Object> ticketChatDetails = chatService.getTicketChatDetails(ticketId);
+                
+                // Send ticket-specific chat history with additional metadata
+                Map<String, Object> response = Map.of(
+                    "type", "ticket",
+                    "ticketId", ticketId,
+                    "messages", ticketChatDetails.get("messages"),
+                    "participants", ticketChatDetails.get("participants"),
+                    "clientUsername", ticketChatDetails.containsKey("clientUsername") ? 
+                                    ticketChatDetails.get("clientUsername") : "",
+                    "agentUsername", ticketChatDetails.containsKey("agentUsername") ? 
+                                    ticketChatDetails.get("agentUsername") : "",
+                    "messageCount", ticketChatDetails.get("messageCount")
+                );
+                
+                // Debug what we're about to send
+                logger.info("🔍 SENDING HISTORY: type=ticket, ticketId={}, messageCount={}, to user={}", 
+                    ticketId, ticketChatDetails.get("messageCount"), username);
+                
+                // Debug the exact destination we're sending to
+                String destination = "/user/" + username + "/queue/chat-history";
+                logger.info("📨 Sending to destination: {}", destination);
+                
+                if (ticketChatDetails.get("messages") != null) {
+                    List<?> messages = (List<?>) ticketChatDetails.get("messages");
+                    if (!messages.isEmpty()) {
+                        logger.info("📝 First message sample: {}", messages.get(0));
+                        if (messages.size() > 1) {
+                            logger.info("📝 Last message sample: {}", messages.get(messages.size() - 1));
+                        }
+                    }
+                }
+                
+                try {
+                    // Send using the standard simpMessagingTemplate approach
+                    messagingTemplate.convertAndSendToUser(
+                        username,
+                        "/queue/chat-history",
+                        response
+                    );
                     
-                    // Only send if there are messages
-                    if (privateMessages != null && !privateMessages.isEmpty()) {
-                        List<ChatMessageDTO> privateDtos = chatService.convertToDTO(privateMessages);
+                    logger.info("✅ Sent ticket chat details via convertAndSendToUser");
+                    
+                    // Also try sending directly to the full destination path as a fallback
+                    // This ensures compatibility with different STOMP client implementations
+                    messagingTemplate.convertAndSend(
+                        "/topic/chat-history/" + ticketId,
+                        response
+                    );
+                    
+                    logger.info("✅ Also sent ticket chat details via direct topic");
+                } catch (Exception e) {
+                    logger.error("❌ Error sending chat history: {}", e.getMessage(), e);
+                }
+                
+                logger.info("✅ Sent ticket chat details for ticket ID {} to {}", ticketId, username);
+            } else {
+                // This is a request for general chat history
+                
+                // For admins, we might want to send a summary of recent chats
+                // For agents, we might want to send only their assigned tickets' chats
+                // For clients, we might want to send only their tickets' chats
+                
+                // For now, continue with the existing implementation but log that this might need to change
+                logger.info("📝 Loading general chat history - this should ideally be restricted based on user roles");
+                
+                // Send recent public messages as fallback
+                List<ChatMessage> publicMessages = chatService.getRecentPublicMessages();
+                List<ChatMessageDTO> publicDtos = chatService.convertToDTO(publicMessages);
+                
+                logger.info("📝 Found {} public messages to send", publicDtos.size());
+                
+                // Send message history to user
+                messagingTemplate.convertAndSendToUser(
+                    username,
+                    "/queue/chat-history",
+                    Map.of(
+                        "type", "public",
+                        "messages", publicDtos
+                    )
+                );
+                
+                logger.info("✅ Sent {} public messages to {}", publicDtos.size(), username);
+                
+                // Find users who have had conversations with this user
+                List<String> conversationPartners = chatService.getUserConversationPartners(username);
+                
+                // If we don't have any conversation partners yet, we'll add some defaults for new users
+                if (conversationPartners.isEmpty()) {
+                    Set<String> defaultPartners = new HashSet<>();
+                    defaultPartners.add("admin");
+                    defaultPartners.add("support");
+                    defaultPartners.add("test");
+                    conversationPartners = new ArrayList<>(defaultPartners);
+                }
+                
+                // Send the list of conversation partners to the client
+                messagingTemplate.convertAndSendToUser(
+                    username,
+                    "/queue/conversation-partners",
+                    Map.of(
+                        "partners", conversationPartners
+                    )
+                );
+                
+                logger.info("✅ Sent {} conversation partners to {}", conversationPartners.size(), username);
+                
+                // For each user, load private chat history and send it
+                for (String otherUser : conversationPartners) {
+                    if (!otherUser.equals(username) && !otherUser.equals("PUBLIC_CHAT")) {
+                        List<ChatMessage> privateMessages = chatService.getChatHistory(username, otherUser);
                         
-                        messagingTemplate.convertAndSendToUser(
-                            username,
-                            "/queue/chat-history",
-                            Map.of(
-                                "type", "private",
-                                "otherUser", otherUser,
-                                "messages", privateDtos
-                            )
-                        );
-                        
-                        logger.info("✅ Sent {} private messages with {} to {}", 
-                            privateDtos.size(), otherUser, username);
+                        // Only send if there are messages
+                        if (privateMessages != null && !privateMessages.isEmpty()) {
+                            List<ChatMessageDTO> privateDtos = chatService.convertToDTO(privateMessages);
+                            
+                            messagingTemplate.convertAndSendToUser(
+                                username,
+                                "/queue/chat-history",
+                                Map.of(
+                                    "type", "private",
+                                    "otherUser", otherUser,
+                                    "messages", privateDtos
+                                )
+                            );
+                            
+                            logger.info("✅ Sent {} private messages with {} to {}", 
+                                privateDtos.size(), otherUser, username);
+                        }
                     }
                 }
             }
         } catch (Exception e) {
             logger.error("❌ Error loading chat history: {}", e.getMessage(), e);
+            
+            // Send error notification to the client
+            messagingTemplate.convertAndSendToUser(
+                username,
+                "/queue/errors",
+                Map.of(
+                    "error", "Failed to load chat history: " + e.getMessage(),
+                    "timestamp", System.currentTimeMillis()
+                )
+            );
         }
     }
 

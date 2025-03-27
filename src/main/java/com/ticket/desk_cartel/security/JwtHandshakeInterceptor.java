@@ -11,14 +11,20 @@ import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 public class JwtHandshakeInterceptor implements HandshakeInterceptor {
 
     private static final Logger logger = LoggerFactory.getLogger(JwtHandshakeInterceptor.class);
     private final JwtUtil jwtUtil;
+    private static final List<String> SOCKJS_PATHS = Arrays.asList(
+        "/websocket", "/xhr", "/xhr_send", "/xhr_streaming", "/eventsource", "/htmlfile"
+    );
 
     public JwtHandshakeInterceptor(JwtUtil jwtUtil) {
         this.jwtUtil = jwtUtil;
@@ -29,56 +35,66 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
                                    ServerHttpResponse response,
                                    WebSocketHandler wsHandler,
                                    Map<String, Object> attributes) {
-        logger.info("🔍 WebSocket Handshake Started... URI: {}", request.getURI());
-
-        String query = request.getURI().getQuery();  // e.g., "token=abc123&foo=bar"
-        logger.info("Query String: {}", query);
-
-        if (!StringUtils.hasText(query)) {
-            logger.warn("❌ No query parameters found in WebSocket request.");
-            response.setStatusCode(HttpStatus.BAD_REQUEST);
-            return false;
-        }
-
-        // 1. Parse query params (split by '&')
-        String[] pairs = query.split("&");
-        String tokenValue = null;
-
-        for (String pair : pairs) {
-            if (pair.startsWith("token=")) {
-                // Extract everything after 'token='
-                tokenValue = pair.substring("token=".length());
+        URI uri = request.getURI();
+        String path = uri.getPath();
+        logger.info("🔍 WebSocket Handshake Started... URI: {}", uri);
+        
+        // Check if this is a SockJS transport endpoint
+        boolean isSockJSTransport = false;
+        for (String sockJSPath : SOCKJS_PATHS) {
+            if (path.endsWith(sockJSPath)) {
+                isSockJSTransport = true;
+                logger.info("📱 Detected SockJS transport endpoint: {}", sockJSPath);
                 break;
             }
         }
-
-        if (!StringUtils.hasText(tokenValue)) {
-            logger.warn("❌ No 'token' parameter found in WebSocket request.");
-            response.setStatusCode(HttpStatus.BAD_REQUEST);
+        
+        // If this is a SockJS transport endpoint or info endpoint, we may already have the token in session attributes
+        // This will be set by the first SockJS handshake and should be reused for subsequent connections
+        if (isSockJSTransport || path.contains("/info")) {
+            // Check if we already have username in session attributes (set from previous SockJS handshake)
+            if (attributes.containsKey("username")) {
+                logger.info("✅ Reusing existing username from session attributes: {}", attributes.get("username"));
+                return true;
+            }
+        }
+        
+        // First try to get the token from query parameters
+        String tokenValue = extractTokenFromQuery(request);
+        
+        // If not found in query, check for Authorization header
+        if (tokenValue == null) {
+            tokenValue = extractTokenFromHeader(request);
+        }
+        
+        // If still not found, reject the connection
+        if (tokenValue == null) {
+            logger.warn("❌ No token found in request (neither in query params nor headers)");
+            response.setStatusCode(HttpStatus.UNAUTHORIZED);
             return false;
         }
-
-        // 2. URL-decode the token (in case it was URL-encoded)
-        try {
-            tokenValue = URLDecoder.decode(tokenValue, StandardCharsets.UTF_8.name());
-        } catch (UnsupportedEncodingException e) {
-            logger.error("❌ Failed to decode token: {}", e.getMessage());
-            response.setStatusCode(HttpStatus.BAD_REQUEST);
-            return false;
+        
+        // Log token for debugging (partially masked)
+        if (tokenValue.length() > 20) {
+            logger.info("📌 Extracted Token: {}...{}", 
+                tokenValue.substring(0, 10), 
+                tokenValue.substring(tokenValue.length() - 10));
+        } else {
+            logger.info("📌 Extracted Token: {}", tokenValue);
         }
 
-        logger.info("📌 Extracted Token: {}", tokenValue.substring(0, Math.min(10, tokenValue.length())) + "...");
-
-        // 3. Validate token using JwtUtil
+        // Validate token using JwtUtil
         try {
             String username = jwtUtil.extractUsername(tokenValue);
             if (username != null && jwtUtil.validateToken(tokenValue, username)) {
                 logger.info("✅ Token Valid. User: {}", username);
+                
+                // Store both username and token in attributes for future use
                 attributes.put("username", username);
+                attributes.put("token", tokenValue);
                 
                 // Debug info to check attributes are properly set
                 logger.info("✅ Set username in session attributes: {}", username);
-                logger.info("✅ Session attributes after setting username: {}", attributes);
                 
                 return true; // ✅ Allow WebSocket connection
             } else {
@@ -93,11 +109,71 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
         }
     }
 
+    /**
+     * Extract token from query parameters
+     */
+    private String extractTokenFromQuery(ServerHttpRequest request) {
+        String query = request.getURI().getQuery();
+        
+        if (!StringUtils.hasText(query)) {
+            return null;
+        }
+        
+        logger.debug("Query String: {}", query);
+        
+        // Parse query params (split by '&')
+        String[] pairs = query.split("&");
+        
+        for (String pair : pairs) {
+            if (pair.startsWith("token=")) {
+                // Extract everything after 'token='
+                String tokenValue = pair.substring("token=".length());
+                
+                // URL-decode the token (in case it was URL-encoded)
+                try {
+                    tokenValue = URLDecoder.decode(tokenValue, StandardCharsets.UTF_8.name());
+                    logger.debug("Found token in query params: {}...", 
+                        tokenValue.length() > 10 ? tokenValue.substring(0, 10) + "..." : tokenValue);
+                    return tokenValue;
+                } catch (UnsupportedEncodingException e) {
+                    logger.error("❌ Failed to decode token: {}", e.getMessage());
+                    return null;
+                }
+            }
+        }
+        
+        logger.debug("No token found in query parameters");
+        return null;
+    }
+
+    /**
+     * Extract token from Authorization header
+     */
+    private String extractTokenFromHeader(ServerHttpRequest request) {
+        // Try to get token from Authorization header
+        String authHeader = null;
+        if (request.getHeaders().containsKey("Authorization")) {
+            authHeader = request.getHeaders().getFirst("Authorization");
+        }
+        
+        if (StringUtils.hasText(authHeader) && authHeader.startsWith("Bearer ")) {
+            logger.debug("Found Authorization header with Bearer token");
+            return authHeader.substring(7); // Remove "Bearer " prefix
+        }
+        
+        logger.debug("No token found in Authorization header");
+        return null;
+    }
+
     @Override
     public void afterHandshake(ServerHttpRequest request,
                                ServerHttpResponse response,
                                WebSocketHandler wsHandler,
                                Exception exception) {
-        // No post-handshake logic needed
+        if (exception != null) {
+            logger.error("❌ Exception after handshake: {}", exception.getMessage(), exception);
+        } else {
+            logger.debug("✅ Handshake completed successfully for {}", request.getURI());
+        }
     }
 }
