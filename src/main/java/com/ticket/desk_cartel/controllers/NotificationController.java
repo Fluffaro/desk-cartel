@@ -14,14 +14,15 @@ import java.util.Optional;
 public class NotificationController {
     private final NotificationService notificationService;
     private final AgentService agentService;
-    private AgentRepository agentRepository;
+    private final AgentRepository agentRepository;
 
-    public NotificationController(NotificationService notificationService, AgentService agentService) {
+    public NotificationController(NotificationService notificationService, AgentService agentService, AgentRepository agentRepository) {
         this.notificationService = notificationService;
         this.agentService = agentService;
+        this.agentRepository = agentRepository;
     }
 
-    @PostMapping("/notifCount/{id}")
+    @GetMapping("/notifCount/{id}")
     public ResponseEntity<?> getNotifCount(@PathVariable Long id){
         Optional<Agent> agentOpt = agentRepository.findById(id);
 
@@ -40,22 +41,22 @@ public class NotificationController {
         notificationService.clickedUserNotification(id);
     }
 
-    @PostMapping("/NotificationCount")
+    @GetMapping("/NotificationCount")
     public ResponseEntity<?> getAgentNotificationCount(@RequestParam Long id){
         return ResponseEntity.ok(notificationService.getAgentNumbersOfNotifications(id));
     }
 
-    @PostMapping("/Notifications")
+    @GetMapping("/Notifications")
     public ResponseEntity<?> getAgentAllNotifications(@RequestParam Long id) throws Exception {
         return ResponseEntity.ok(notificationService.getAllAgentNotification(id));
     }
 
-    @PostMapping("/NotificationCount/{id}")
+    @GetMapping("/NotificationCount/{id}")
     public ResponseEntity<?> getUserNotificationCount(@PathVariable Long id){
-        return ResponseEntity.ok(notificationService.getAgentNumbersOfNotifications(id));
+        return ResponseEntity.ok(notificationService.getUserNumbersOfNotifications(id));
     }
 
-    @PostMapping("/Notifications/{id}")
+    @GetMapping("/Notifications/{id}")
     public ResponseEntity<?> getUserAllNotifications(@PathVariable Long id) throws Exception {
         return ResponseEntity.ok(notificationService.getAllUserNotification(id));
     }
