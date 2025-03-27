@@ -1,18 +1,14 @@
-package com.ticket.desk_cartel;
-
 import com.ticket.desk_cartel.entities.Agent;
-import com.ticket.desk_cartel.services.NotificationService;
-import com.ticket.desk_cartel.services.AgentService;
 import com.ticket.desk_cartel.controllers.*;
 import com.ticket.desk_cartel.repositories.AgentRepository;
+import com.ticket.desk_cartel.services.AgentService;
+import com.ticket.desk_cartel.services.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 

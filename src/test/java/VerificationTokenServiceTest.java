@@ -1,9 +1,7 @@
-package com.ticket.desk_cartel.services;
-
-
 import com.ticket.desk_cartel.entities.User;
 import com.ticket.desk_cartel.entities.VerificationToken;
 import com.ticket.desk_cartel.repositories.VerificationTokenRepository;
+import com.ticket.desk_cartel.services.VerificationTokenService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;

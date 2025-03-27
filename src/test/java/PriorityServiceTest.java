@@ -1,9 +1,8 @@
-package com.ticket.desk_cartel.services;
-
 import com.ticket.desk_cartel.entities.Priority;
 import com.ticket.desk_cartel.exceptions.ResourceAlreadyExistsException;
 import com.ticket.desk_cartel.exceptions.ResourceNotFoundException;
 import com.ticket.desk_cartel.repositories.PriorityRepository;
+import com.ticket.desk_cartel.services.PriorityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;

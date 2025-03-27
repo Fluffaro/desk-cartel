@@ -34,7 +34,7 @@ public class AgentService {
     private final VerificationTokenService verificationTokenService;
     
     @Autowired
-    private NotificationService notificationService;
+    public NotificationService notificationService;
     
     @Autowired
     public AgentService(

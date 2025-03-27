@@ -1,5 +1,3 @@
-package com.ticket.desk_cartel;
-
 import com.ticket.desk_cartel.entities.Comment;
 import com.ticket.desk_cartel.entities.Ticket;
 import com.ticket.desk_cartel.entities.User;

@@ -1,5 +1,3 @@
-package com.ticket.desk_cartel;
-
 import com.ticket.desk_cartel.entities.Category;
 import com.ticket.desk_cartel.repositories.CategoryRepository;
 import com.ticket.desk_cartel.services.CategoryService;
@@ -12,7 +10,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import static org.mockito.Mockito.lenient; // Add this import
 
-import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
