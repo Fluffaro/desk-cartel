@@ -251,4 +251,18 @@ public class NotificationService {
         logger.info("Created no-agent-available notification for user {}", ticket.getTicketOwner().getId());
         return notificationRepository.save(notification);
     }
+
+    /**
+     * get notifications of agent based on their userId
+     */
+    public List<Notification> getNotificationsByUserId(Long userId) throws Exception {
+        Optional<Agent> agentOpt = agentRepository.findByUserId(userId);
+        if (agentOpt.isEmpty()) {
+            throw new Exception("No agent found for the given userId.");
+        }
+        return getAllAgentNotification(agentOpt.get().getId());
+    }
+
+
+
 }
