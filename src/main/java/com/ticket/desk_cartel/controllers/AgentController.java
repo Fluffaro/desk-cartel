@@ -115,21 +115,52 @@ public class AgentController {
     public ResponseEntity<?> setAgentActiveStatus(
             @PathVariable Long id,
             @RequestParam boolean active) {
+        // First count tickets before status change
+        int ticketCountBefore = 0;
+        if (!active) {
+            ticketCountBefore = ticketService.getTicketsByAgent(id).size();
+        }
+        
+        // Change agent status
         Optional<Agent> agent = agentService.setAgentActiveStatus(id, active);
         
         if (agent.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
         
-        // For deactivation, include information about tickets
+        // For deactivation, verify tickets were actually reassigned
         if (!active) {
-            int ticketCount = ticketService.getTicketsByAgent(id).size();
+            // Give a small delay for ticket reassignment
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            
+            // Check if tickets were actually reassigned
+            List<Ticket> remainingTickets = ticketService.getTicketsByAgent(id);
+            int ticketsReassigned = ticketCountBefore - remainingTickets.size();
+            
+            // If we still have tickets, need to force reassignment
+            if (!remainingTickets.isEmpty()) {
+                // Force another deactivation to ensure all tickets are removed
+                agent = agentService.setAgentActiveStatus(id, active);
+                
+                // Recount the tickets
+                remainingTickets = ticketService.getTicketsByAgent(id);
+                ticketsReassigned = ticketCountBefore - remainingTickets.size();
+            }
             
             Map<String, Object> response = new HashMap<>();
             response.put("agent", agent.get());
-            response.put("ticketsReassigned", ticketCount);
-            response.put("message", "Agent deactivated and " + ticketCount + 
-                    (ticketCount == 1 ? " ticket was" : " tickets were") + " reassigned.");
+            response.put("ticketsReassigned", ticketsReassigned);
+            response.put("remainingTickets", remainingTickets.size());
+            response.put("message", "Agent deactivated and " + ticketsReassigned + 
+                    (ticketsReassigned == 1 ? " ticket was" : " tickets were") + " reassigned.");
+            
+            if (!remainingTickets.isEmpty()) {
+                response.put("warning", "Some tickets could not be reassigned. Manual intervention required.");
+            }
             
             return ResponseEntity.ok(response);
         }
