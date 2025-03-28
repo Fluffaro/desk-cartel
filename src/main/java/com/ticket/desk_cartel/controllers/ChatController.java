@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.ArrayList;
 import java.time.LocalDateTime;
+import java.util.Collections;
 
 @RestController  // Use @RestController for both WebSocket and REST API
 @RequestMapping("${api.chat.base-url}")
@@ -395,17 +396,49 @@ public class ChatController {
         }
     }
     
-    // 🧑‍💻 Load Chat History (WebSocket endpoint)
+    /**
+     * Load chat history
+     */
     @MessageMapping("/load-history")
-    public void loadChatHistory(@Payload(required = false) Map<String, Object> payload, 
-                               StompHeaderAccessor accessor, 
-                               Principal principal) {
+    public void loadChatHistory(@Payload Map<String, Object> payload, StompHeaderAccessor accessor, Principal principal) {
         String username;
         Object ticketIdObj = payload != null ? payload.get("ticketId") : null;
         String ticketId = ticketIdObj != null ? ticketIdObj.toString() : null;
         
         logger.info("🔄 Received request to load chat history. Payload: {}", payload);
         logger.info("🎫 Ticket ID parameter: {}", ticketId);
+        
+        // Check for requestId to prevent duplicate processing
+        String requestId = payload != null && payload.get("requestId") != null 
+            ? payload.get("requestId").toString() 
+            : null;
+            
+        // Use a static Set to track recently processed request IDs
+        if (requestId != null) {
+            // Use a synchronized block to prevent concurrent modification
+            synchronized (PROCESSED_REQUEST_IDS) {
+                if (PROCESSED_REQUEST_IDS.contains(requestId)) {
+                    logger.info("⚠️ Duplicate history request detected with ID {}, skipping", requestId);
+                    return;
+                }
+                
+                // Add to processed set and schedule removal after 10 seconds
+                PROCESSED_REQUEST_IDS.add(requestId);
+                
+                // Clean up old request IDs periodically to prevent memory leaks
+                new java.util.Timer().schedule(
+                    new java.util.TimerTask() {
+                        @Override
+                        public void run() {
+                            synchronized (PROCESSED_REQUEST_IDS) {
+                                PROCESSED_REQUEST_IDS.remove(requestId);
+                            }
+                        }
+                    }, 
+                    10000 // 10 seconds
+                );
+            }
+        }
         
         // Get username (from Principal or session)
         if (principal != null) {
@@ -449,7 +482,8 @@ public class ChatController {
                                     ticketChatDetails.get("clientUsername") : "",
                     "agentUsername", ticketChatDetails.containsKey("agentUsername") ? 
                                     ticketChatDetails.get("agentUsername") : "",
-                    "messageCount", ticketChatDetails.get("messageCount")
+                    "messageCount", ticketChatDetails.get("messageCount"),
+                    "requestId", requestId != null ? requestId : "" // Add requestId to response for tracking
                 );
                 
                 // Debug what we're about to send
@@ -488,6 +522,25 @@ public class ChatController {
                     );
                     
                     logger.info("✅ Also sent ticket chat details via direct topic");
+                    
+                    // Add a third fallback using session ID-based addressing, which is most reliable
+                    // when there are connection issues
+                    String sessionId = accessor.getSessionId();
+                    if (sessionId != null) {
+                        messagingTemplate.convertAndSendToUser(
+                            sessionId,
+                            "/queue/chat-history",
+                            response
+                        );
+                        logger.info("✅ Also sent ticket chat history via session ID: {}", sessionId);
+                        
+                        // Try an additional direct queue destination as a last resort
+                        messagingTemplate.convertAndSend(
+                            "/queue/chat-history-user" + sessionId,
+                            response
+                        );
+                        logger.info("✅ Also sent ticket chat history via direct queue with session ID");
+                    }
                 } catch (Exception e) {
                     logger.error("❌ Error sending chat history: {}", e.getMessage(), e);
                 }
@@ -697,4 +750,7 @@ public class ChatController {
             return ResponseEntity.status(500).build();
         }
     }
+
+    // Add a static set to track processed request IDs to prevent duplicate processing
+    private static final Set<String> PROCESSED_REQUEST_IDS = Collections.synchronizedSet(new HashSet<>());
 }
