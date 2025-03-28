@@ -428,13 +428,24 @@ public class AgentService {
         
         Agent agent = agentOpt.get();
         
-        // If we're deactivating an agent, reassign their tickets
-        if (!active && agent.isActive()) {
-            reassignAgentTickets(agent);
+        // Only process if status is actually changing
+        if (agent.isActive() != active) {
+            // If we're deactivating an agent, reassign their tickets
+            if (!active) {
+                logger.info("Deactivating agent {} and reassigning tickets", agentId);
+                reassignAgentTickets(agent);
+            } else {
+                logger.info("Activating agent {}", agentId);
+            }
+            
+            agent.setActive(active);
+            agent = agentRepository.save(agent);
+            logger.info("Agent {} active status changed to {}", agentId, active);
+        } else {
+            logger.info("Agent {} status unchanged, already {}", agentId, active ? "active" : "inactive");
         }
         
-        agent.setActive(active);
-        return Optional.of(agentRepository.save(agent));
+        return Optional.of(agent);
     }
     
     /**
@@ -492,6 +503,9 @@ public class AgentService {
 
         // Try to reassign each ticket
         for (Ticket ticket : agentTickets) {
+            // Calculate the ticket weight to remove from agent's workload
+            int ticketWeight = ticket.getPriority().getWeight();
+            
             // Remove current agent assignment
             ticket.setAssignedTicket(null);
             ticket.setStatus(Status.NO_AGENT_AVAILABLE);

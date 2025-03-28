@@ -116,8 +116,25 @@ public class AgentController {
             @PathVariable Long id,
             @RequestParam boolean active) {
         Optional<Agent> agent = agentService.setAgentActiveStatus(id, active);
-        return agent.map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        
+        if (agent.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        
+        // For deactivation, include information about tickets
+        if (!active) {
+            int ticketCount = ticketService.getTicketsByAgent(id).size();
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("agent", agent.get());
+            response.put("ticketsReassigned", ticketCount);
+            response.put("message", "Agent deactivated and " + ticketCount + 
+                    (ticketCount == 1 ? " ticket was" : " tickets were") + " reassigned.");
+            
+            return ResponseEntity.ok(response);
+        }
+        
+        return ResponseEntity.ok(agent.get());
     }
 
     /**
