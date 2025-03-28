@@ -31,6 +31,9 @@ public interface AgentRepository extends JpaRepository<Agent, Long> {
     // Alternative method using Spring Data naming convention
     List<Agent> findByCurrentWorkloadLessThanAndIsActiveTrue(int totalCapacity);
 
+    // Find all inactive agents
+    @Query("SELECT a FROM Agent a WHERE a.isActive = false")
+    List<Agent> findByIsActiveFalse();
 
     /**
      * Custom query to find agents by user_id.
