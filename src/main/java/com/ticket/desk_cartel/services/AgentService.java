@@ -459,6 +459,17 @@ public class AgentService {
         if (agent.isActive() == active) {
             logger.info("Agent {} status unchanged, already {}", 
                 agentId, active ? "active" : "inactive");
+                
+            // Even if the agent is already inactive, check for any tickets that might still be assigned
+            if (!active) {
+                List<Ticket> assignedTickets = ticketRepository.findByAssignedTicket_Id(agentId);
+                if (!assignedTickets.isEmpty()) {
+                    logger.warn("Agent {} is already inactive but still has {} tickets assigned. Forcing reassignment.",
+                        agentId, assignedTickets.size());
+                    forceReassignTickets(agent, assignedTickets);
+                }
+            }
+            
             return Optional.of(agent);
         }
         
@@ -479,12 +490,10 @@ public class AgentService {
             if (ticketCount > 0) {
                 logger.info("Agent {} has {} active tickets that will be reassigned", 
                     agentId, ticketCount);
-                reassignAgentTickets(agent);
+                forceReassignTickets(agent, activeTickets);
             } else {
                 logger.info("Agent {} has no active tickets to reassign", agentId);
             }
-        } else {
-            logger.info("Activating agent {}", agentId);
         }
         
         // Update agent status
@@ -492,7 +501,7 @@ public class AgentService {
         Agent savedAgent = agentRepository.save(agent);
         logger.info("Agent {} active status changed to {}", agentId, active);
         
-        // Verify tickets were actually reassigned
+        // Verify tickets were actually reassigned if deactivating
         if (!active) {
             List<Ticket> remainingTickets = ticketRepository.findByAssignedTicket_Id(agentId)
                 .stream()
@@ -502,17 +511,48 @@ public class AgentService {
             if (!remainingTickets.isEmpty()) {
                 logger.warn("Agent {} still has {} active tickets after deactivation. Forcing reassignment.", 
                     agentId, remainingTickets.size());
-                    
-                // Force a secondary reassignment
-                for (Ticket ticket : remainingTickets) {
-                    ticket.setAssignedTicket(null);
-                    ticket.setStatus(Status.NO_AGENT_AVAILABLE);
-                    ticketRepository.save(ticket);
-                }
+                forceReassignTickets(agent, remainingTickets);
             }
         }
         
         return Optional.of(savedAgent);
+    }
+    
+    /**
+     * Force reassignment of tickets from an agent without attempting to assign them to new agents.
+     * This is used when we need to guarantee tickets are unassigned from an agent.
+     * 
+     * @param agent The agent to unassign tickets from
+     * @param tickets The tickets to unassign
+     */
+    @Transactional
+    private void forceReassignTickets(Agent agent, List<Ticket> tickets) {
+        if (agent == null || tickets == null || tickets.isEmpty()) {
+            return;
+        }
+        
+        logger.info("Forcing reassignment of {} tickets from agent {}", tickets.size(), agent.getId());
+        
+        // Calculate total workload to remove
+        int totalWorkload = tickets.stream()
+            .mapToInt(ticket -> ticket.getPriority().getWeight())
+            .sum();
+            
+        // Update agent's workload
+        agent.setCurrentWorkload(Math.max(0, agent.getCurrentWorkload() - totalWorkload));
+        agentRepository.save(agent);
+        
+        // Unassign all tickets
+        for (Ticket ticket : tickets) {
+            ticket.setAssignedTicket(null);
+            ticket.setStatus(Status.NO_AGENT_AVAILABLE);
+            ticketRepository.save(ticket);
+            
+            // Create notification for user
+            notificationService.createNoAgentAvailableNotification(ticket);
+            
+            logger.info("Unassigned ticket {} from agent {}", ticket.getTicketId(), agent.getId());
+        }
     }
     
     /**
