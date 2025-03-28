@@ -413,6 +413,7 @@ public class AgentService {
     
     /**
      * Set an agent's active status.
+     * When deactivating an agent, their current tickets will be reassigned.
      * 
      * @param agentId the agent ID
      * @param active the new active status
@@ -426,6 +427,12 @@ public class AgentService {
         }
         
         Agent agent = agentOpt.get();
+        
+        // If we're deactivating an agent, reassign their tickets
+        if (!active && agent.isActive()) {
+            reassignAgentTickets(agent);
+        }
+        
         agent.setActive(active);
         return Optional.of(agentRepository.save(agent));
     }
@@ -453,6 +460,56 @@ public class AgentService {
     public Agent saveAgent(Agent agent) {
         return agentRepository.save(agent);
     }
+    
+    /**
+     * Reassign all tickets from an inactive agent.
+     * 
+     * @param agent The agent whose tickets need to be reassigned
+     */
+    @Transactional
+    public void reassignAgentTickets(Agent agent) {
+        if (agent == null) {
+            logger.warn("Cannot reassign tickets for null agent");
+            return;
+        }
 
+        // Find all tickets assigned to this agent that are not completed
+        List<Ticket> agentTickets = ticketRepository.findByAssignedTicket_Id(agent.getId())
+            .stream()
+            .filter(ticket -> ticket.getStatus() != Status.COMPLETED)
+            .toList();
 
+        if (agentTickets.isEmpty()) {
+            logger.info("No active tickets to reassign for agent {}", agent.getId());
+            return;
+        }
+
+        logger.info("Found {} tickets to reassign from agent {}", agentTickets.size(), agent.getId());
+
+        // Reset agent's workload since we're reassigning all tickets
+        agent.setCurrentWorkload(0);
+        agentRepository.save(agent);
+
+        // Try to reassign each ticket
+        for (Ticket ticket : agentTickets) {
+            // Remove current agent assignment
+            ticket.setAssignedTicket(null);
+            ticket.setStatus(Status.NO_AGENT_AVAILABLE);
+            ticketRepository.save(ticket);
+
+            // Try to assign to a new agent
+            Ticket updatedTicket = assignTicketToAgent(ticket.getTicketId());
+
+            if (updatedTicket != null && updatedTicket.getAssignedTicket() != null) {
+                logger.info("Successfully reassigned ticket {} from agent {} to agent {}", 
+                    ticket.getTicketId(), agent.getId(), updatedTicket.getAssignedTicket().getId());
+            } else {
+                logger.warn("Could not find new agent for ticket {}. Marked as NO_AGENT_AVAILABLE", 
+                    ticket.getTicketId());
+                
+                // Create notification for user about no agent being available
+                notificationService.createNoAgentAvailableNotification(ticket);
+            }
+        }
+    }
 } 

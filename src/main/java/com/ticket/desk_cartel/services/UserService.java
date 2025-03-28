@@ -32,16 +32,18 @@ public class UserService implements UserDetailsService {
     private final UserRepository userRepository;
     private final AgentRepository agentRepository;
     private final TicketRepository ticketRepository;
+    private final AgentService agentService;
 
     /**
      * Constructor-based dependency injection.
      *
      * @param userRepository Repository for user data access.
      */
-    public UserService(UserRepository userRepository, AgentRepository agentRepository, TicketRepository ticketRepository) {
+    public UserService(UserRepository userRepository, AgentRepository agentRepository, TicketRepository ticketRepository, AgentService agentService) {
         this.userRepository = userRepository;
         this.agentRepository = agentRepository;
         this.ticketRepository = ticketRepository;
+        this.agentService = agentService;
     }
 
     /**
@@ -169,16 +171,14 @@ public class UserService implements UserDetailsService {
                 agentRepository.save(newAgent);
             }
         } else {
-            // If demoting/removing an agent, ensure they have no ongoing tickets
+            // If demoting/removing an agent, handle their tickets first
             Optional<Agent> agentOpt = agentRepository.findByUser(user);
             if (agentOpt.isPresent()) {
                 Agent agent = agentOpt.get();
-                int ongoingTickets = ticketRepository.countOngoingTickets(agent);
-
-                if (ongoingTickets > 0) {
-                    throw new RuntimeException("Cannot remove agent role. The agent has ongoing tickets.");
-                }
-
+                
+                // Reassign all tickets before deactivating
+                agentService.reassignAgentTickets(agent);
+                
                 agent.setActive(false);
                 agentRepository.save(agent);
             }
