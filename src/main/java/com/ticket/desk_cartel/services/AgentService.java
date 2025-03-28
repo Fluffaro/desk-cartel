@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Service for managing support agents and ticket assignments.
@@ -134,9 +135,27 @@ public class AgentService {
         
         // Skip if ticket already has an agent
         if (ticket.getAssignedTicket() != null) {
-            logger.info("Ticket {} already assigned to agent {}", 
-                    ticketId, ticket.getAssignedTicket().getId());
-            return ticket;
+            // Check if the assigned agent is still active
+            if (!ticket.getAssignedTicket().isActive()) {
+                logger.warn("Ticket {} is assigned to inactive agent {}. Will reassign.", 
+                        ticketId, ticket.getAssignedTicket().getId());
+                // Remove the inactive agent assignment
+                Agent inactiveAgent = ticket.getAssignedTicket();
+                ticket.setAssignedTicket(null);
+                ticket.setStatus(Status.NO_AGENT_AVAILABLE);
+                ticketRepository.save(ticket);
+                
+                // Reset agent's workload for this ticket
+                if (inactiveAgent != null) {
+                    inactiveAgent.reduceWorkload(ticket.getPriority().getWeight());
+                    agentRepository.save(inactiveAgent);
+                }
+            } else {
+                // Agent is active, so ticket is already properly assigned
+                logger.info("Ticket {} already assigned to active agent {}", 
+                        ticketId, ticket.getAssignedTicket().getId());
+                return ticket;
+            }
         }
         
         // Find best agent for this ticket
@@ -149,6 +168,13 @@ public class AgentService {
         }
         
         Agent agent = agentOpt.get();
+        
+        // Verify the agent is active
+        if (!agent.isActive()) {
+            logger.warn("Selected agent {} is inactive. Cannot assign ticket {}", agent.getId(), ticketId);
+            ticket.setStatus(Status.NO_AGENT_AVAILABLE);
+            return ticketRepository.save(ticket);
+        }
         
         // Double-check agent can handle this ticket's weight
         int ticketWeight = ticket.getPriority().getWeight();
@@ -423,29 +449,70 @@ public class AgentService {
     public Optional<Agent> setAgentActiveStatus(Long agentId, boolean active) {
         Optional<Agent> agentOpt = agentRepository.findById(agentId);
         if (agentOpt.isEmpty()) {
+            logger.warn("Cannot set active status for non-existent agent: {}", agentId);
             return Optional.empty();
         }
         
         Agent agent = agentOpt.get();
         
         // Only process if status is actually changing
-        if (agent.isActive() != active) {
-            // If we're deactivating an agent, reassign their tickets
-            if (!active) {
-                logger.info("Deactivating agent {} and reassigning tickets", agentId);
-                reassignAgentTickets(agent);
-            } else {
-                logger.info("Activating agent {}", agentId);
-            }
-            
-            agent.setActive(active);
-            agent = agentRepository.save(agent);
-            logger.info("Agent {} active status changed to {}", agentId, active);
-        } else {
-            logger.info("Agent {} status unchanged, already {}", agentId, active ? "active" : "inactive");
+        if (agent.isActive() == active) {
+            logger.info("Agent {} status unchanged, already {}", 
+                agentId, active ? "active" : "inactive");
+            return Optional.of(agent);
         }
         
-        return Optional.of(agent);
+        logger.info("Changing agent {} status from {} to {}", 
+            agentId, agent.isActive() ? "active" : "inactive", active ? "active" : "inactive");
+        
+        // If we're deactivating an agent, reassign their tickets first
+        if (!active) {
+            logger.info("Deactivating agent {} and reassigning tickets", agentId);
+            
+            // Count how many tickets will be affected
+            List<Ticket> activeTickets = ticketRepository.findByAssignedTicket_Id(agentId)
+                .stream()
+                .filter(ticket -> ticket.getStatus() != Status.COMPLETED)
+                .collect(Collectors.toList());
+                
+            int ticketCount = activeTickets.size();
+            if (ticketCount > 0) {
+                logger.info("Agent {} has {} active tickets that will be reassigned", 
+                    agentId, ticketCount);
+                reassignAgentTickets(agent);
+            } else {
+                logger.info("Agent {} has no active tickets to reassign", agentId);
+            }
+        } else {
+            logger.info("Activating agent {}", agentId);
+        }
+        
+        // Update agent status
+        agent.setActive(active);
+        Agent savedAgent = agentRepository.save(agent);
+        logger.info("Agent {} active status changed to {}", agentId, active);
+        
+        // Verify tickets were actually reassigned
+        if (!active) {
+            List<Ticket> remainingTickets = ticketRepository.findByAssignedTicket_Id(agentId)
+                .stream()
+                .filter(ticket -> ticket.getStatus() != Status.COMPLETED)
+                .collect(Collectors.toList());
+                
+            if (!remainingTickets.isEmpty()) {
+                logger.warn("Agent {} still has {} active tickets after deactivation. Forcing reassignment.", 
+                    agentId, remainingTickets.size());
+                    
+                // Force a secondary reassignment
+                for (Ticket ticket : remainingTickets) {
+                    ticket.setAssignedTicket(null);
+                    ticket.setStatus(Status.NO_AGENT_AVAILABLE);
+                    ticketRepository.save(ticket);
+                }
+            }
+        }
+        
+        return Optional.of(savedAgent);
     }
     
     /**
@@ -484,11 +551,13 @@ public class AgentService {
             return;
         }
 
+        logger.info("Starting ticket reassignment for agent {}", agent.getId());
+
         // Find all tickets assigned to this agent that are not completed
         List<Ticket> agentTickets = ticketRepository.findByAssignedTicket_Id(agent.getId())
             .stream()
             .filter(ticket -> ticket.getStatus() != Status.COMPLETED)
-            .toList();
+            .collect(Collectors.toList());
 
         if (agentTickets.isEmpty()) {
             logger.info("No active tickets to reassign for agent {}", agent.getId());
@@ -497,15 +566,24 @@ public class AgentService {
 
         logger.info("Found {} tickets to reassign from agent {}", agentTickets.size(), agent.getId());
 
-        // Reset agent's workload since we're reassigning all tickets
-        agent.setCurrentWorkload(0);
+        // Calculate total workload to be removed
+        int totalWorkloadToRemove = agentTickets.stream()
+            .mapToInt(ticket -> ticket.getPriority().getWeight())
+            .sum();
+            
+        // Reset agent's workload
+        agent.setCurrentWorkload(Math.max(0, agent.getCurrentWorkload() - totalWorkloadToRemove));
         agentRepository.save(agent);
+        
+        logger.info("Reset workload for agent {}. Removed {} points of workload.", 
+            agent.getId(), totalWorkloadToRemove);
 
         // Try to reassign each ticket
+        int reassignedCount = 0;
         for (Ticket ticket : agentTickets) {
-            // Calculate the ticket weight to remove from agent's workload
-            int ticketWeight = ticket.getPriority().getWeight();
-            
+            logger.info("Processing ticket {} with priority {}", 
+                ticket.getTicketId(), ticket.getPriority().getName());
+                
             // Remove current agent assignment
             ticket.setAssignedTicket(null);
             ticket.setStatus(Status.NO_AGENT_AVAILABLE);
@@ -517,6 +595,7 @@ public class AgentService {
             if (updatedTicket != null && updatedTicket.getAssignedTicket() != null) {
                 logger.info("Successfully reassigned ticket {} from agent {} to agent {}", 
                     ticket.getTicketId(), agent.getId(), updatedTicket.getAssignedTicket().getId());
+                reassignedCount++;
             } else {
                 logger.warn("Could not find new agent for ticket {}. Marked as NO_AGENT_AVAILABLE", 
                     ticket.getTicketId());
@@ -525,5 +604,8 @@ public class AgentService {
                 notificationService.createNoAgentAvailableNotification(ticket);
             }
         }
+        
+        logger.info("Completed reassignment for agent {}. Successfully reassigned {} out of {} tickets.",
+            agent.getId(), reassignedCount, agentTickets.size());
     }
 } 
